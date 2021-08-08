@@ -36,7 +36,7 @@ guid make_guid(const wchar_t* value)
 	to_guid to_guid;
 	memset(&to_guid, 0, sizeof(to_guid));
 	int offset = 0;
-	for (int i = 0; i < wcslen(value); i++) {
+	for (unsigned int i = 0; i < wcslen(value); i++) {
 		if (value[i] >= '0' && value[i] <= '9')
 		{
 			uint8_t digit = value[i] - '0';
@@ -271,7 +271,7 @@ void StartDeviceScan() {
 		clearError();
 	}
 
-	IVector<hstring> requestedProperties = single_threaded_vector<hstring>({ L"System.Devices.Aep.DeviceAddress", L"System.Devices.Aep.IsConnected", L"System.Devices.Aep.Bluetooth.Le.IsConnectable" , L"System.Devices.Aep.SignalStrength"});
+	IVector<hstring> requestedProperties = single_threaded_vector<hstring>({ L"System.Devices.Aep.DeviceAddress", L"System.Devices.Aep.IsConnected", L"System.Devices.Aep.Bluetooth.Le.IsConnectable", L"System.Devices.Aep.SignalStrength"});
 	hstring aqsAllBluetoothLEDevices = L"(System.Devices.Aep.ProtocolId:=\"{bb7bb05e-5972-42b5-94fc-76eaa7084d49}\")"; // list Bluetooth LE devices
 	deviceWatcher = DeviceInformation::CreateWatcher(
 		aqsAllBluetoothLEDevices,
