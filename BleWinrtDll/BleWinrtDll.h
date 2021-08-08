@@ -8,6 +8,7 @@ struct DeviceUpdate {
 	bool isConnectableUpdated = false;
 	wchar_t name[50];
 	bool nameUpdated = false;
+	int32_t signalStrength;
 };
 
 struct Service {
