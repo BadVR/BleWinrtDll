@@ -17,6 +17,8 @@ public class BLE
         {
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 100)]
             public string id;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 18)]
+            public string mac;
             [MarshalAs(UnmanagedType.I1)]
             public bool isConnected;
             [MarshalAs(UnmanagedType.I1)]
@@ -143,9 +145,11 @@ public class BLE
             Impl.StartDeviceScan();
             Impl.DeviceUpdate res = new Impl.DeviceUpdate();
             List<string> deviceIds = new List<string>();
+            Dictionary<string, string> deviceMac = new Dictionary<string, string>();
             Dictionary<string, string> deviceName = new Dictionary<string, string>();
             Dictionary<string, bool> deviceIsConnectable = new Dictionary<string, bool>();
             Impl.ScanStatus status;
+
             while (Impl.PollDevice(out res, true) != Impl.ScanStatus.FINISHED)
             {
                 if (!deviceIds.Contains(res.id))
@@ -153,7 +157,13 @@ public class BLE
                     deviceIds.Add(res.id);
                     deviceName[res.id] = "";
                     deviceIsConnectable[res.id] = false;
+                    deviceMac[res.id] = res.mac;
                 }
+                else
+                {
+                    res.mac = deviceMac[res.id];
+                }
+
                 if (res.nameUpdated)
                     deviceName[res.id] = res.name;
                 if (res.isConnectableUpdated)
@@ -164,6 +174,8 @@ public class BLE
                 // check if scan was cancelled in callback
                 if (currentScan.cancelled)
                     break;
+
+                Console.WriteLine(res.mac + " " + (res.hasSignalStrength ? res.signalStrength.ToString() : "(no rssi)"));
             }
             currentScan.Finished?.Invoke();
             scanThread = null;
