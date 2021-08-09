@@ -18,6 +18,10 @@ public class BLE
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 100)]
             public string id;
             [MarshalAs(UnmanagedType.I1)]
+            public bool isConnected;
+            [MarshalAs(UnmanagedType.I1)]
+            public bool isConnectedUpdated;
+            [MarshalAs(UnmanagedType.I1)]
             public bool isConnectable;
             [MarshalAs(UnmanagedType.I1)]
             public bool isConnectableUpdated;
@@ -25,6 +29,10 @@ public class BLE
             public string name;
             [MarshalAs(UnmanagedType.I1)]
             public bool nameUpdated;
+            [MarshalAs(UnmanagedType.I4)]
+            public int signalStrength;
+            [MarshalAs(UnmanagedType.I1)]
+            public bool hasSignalStrength;
         }
 
         [DllImport("BleWinrtDll.dll", EntryPoint = "StartDeviceScan")]
