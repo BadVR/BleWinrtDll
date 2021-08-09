@@ -217,13 +217,14 @@ bool QuittableWait(condition_variable& signal, unique_lock<mutex>& waitLock) {
 
 void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo) {
 	DeviceUpdate deviceUpdate;
-	deviceUpdate.id[0] = 0;
+
+	wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), deviceInfo.Id().c_str());
 
 	wcscpy_s(deviceUpdate.name, sizeof(deviceUpdate.name) / sizeof(wchar_t), deviceInfo.Name().c_str());
 	deviceUpdate.nameUpdated = true;
 
 	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.DeviceAddress")) {
-		wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), unbox_value<hstring>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.DeviceAddress")).c_str());
+		wcscpy_s(deviceUpdate.mac, sizeof(deviceUpdate.mac) / sizeof(wchar_t), unbox_value<hstring>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.DeviceAddress")).c_str());
 	}
 	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable")) {
 		deviceUpdate.isConnectable = unbox_value<bool>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"));
@@ -252,11 +253,12 @@ void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo) {
 }
 void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate) {
 	DeviceUpdate deviceUpdate;
-	deviceUpdate.id[0] = 0;
+
+	wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), deviceInfoUpdate.Id().c_str());
+
+	//null out the mac in an update since it's not available anywhere
+	deviceUpdate.mac[0] = 0;
 	
-	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.DeviceAddress")) {
-		wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), unbox_value<hstring>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.DeviceAddress")).c_str());
-	}
 	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable")) {
 		deviceUpdate.isConnectable = unbox_value<bool>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"));
 		deviceUpdate.isConnectableUpdated = true;
