@@ -4,11 +4,14 @@
 
 struct DeviceUpdate {
 	wchar_t id[100];
+	bool isConnected = false;
+	bool isConnectedUpdated = false;
 	bool isConnectable = false;
 	bool isConnectableUpdated = false;
 	wchar_t name[50];
 	bool nameUpdated = false;
 	int32_t signalStrength;
+	bool hasSignalStrength = false;
 };
 
 struct Service {

@@ -217,16 +217,28 @@ bool QuittableWait(condition_variable& signal, unique_lock<mutex>& waitLock) {
 
 void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo) {
 	DeviceUpdate deviceUpdate;
-	wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), deviceInfo.Id().c_str());
+	deviceUpdate.id[0] = 0;
+
 	wcscpy_s(deviceUpdate.name, sizeof(deviceUpdate.name) / sizeof(wchar_t), deviceInfo.Name().c_str());
 	deviceUpdate.nameUpdated = true;
+
+	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.DeviceAddress")) {
+		wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), unbox_value<hstring>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.DeviceAddress")).c_str());
+	}
 	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable")) {
 		deviceUpdate.isConnectable = unbox_value<bool>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"));
 		deviceUpdate.isConnectableUpdated = true;
 	}
+	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnected")) {
+		deviceUpdate.isConnected = unbox_value<bool>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnected"));
+		deviceUpdate.isConnectedUpdated = true;
+	}
+	deviceUpdate.signalStrength = -999;
 	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.SignalStrength")) {
 		deviceUpdate.signalStrength = unbox_value<int32_t>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.SignalStrength"));
+		deviceUpdate.hasSignalStrength = true;
 	}
+
 	{
 		lock_guard lock(quitLock);
 		if (quitFlag)
@@ -240,14 +252,24 @@ void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo) {
 }
 void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate) {
 	DeviceUpdate deviceUpdate;
-	wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), deviceInfoUpdate.Id().c_str());
+	deviceUpdate.id[0] = 0;
+	
+	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.DeviceAddress")) {
+		wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), unbox_value<hstring>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.DeviceAddress")).c_str());
+	}
 	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable")) {
 		deviceUpdate.isConnectable = unbox_value<bool>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"));
 		deviceUpdate.isConnectableUpdated = true;
 	}
-	if(deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.SignalStrength")) {
-		deviceUpdate.signalStrength = unbox_value<int32_t>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.SignalStrength"));
+	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnected")) {
+		deviceUpdate.isConnected = unbox_value<bool>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnected"));
+		deviceUpdate.isConnectedUpdated = true;
 	}
+	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.SignalStrength")) {
+		deviceUpdate.signalStrength = unbox_value<int32_t>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.SignalStrength"));
+		deviceUpdate.hasSignalStrength = true;
+	}
+	
 	{
 		lock_guard lock(quitLock);
 		if (quitFlag)
@@ -271,7 +293,7 @@ void StartDeviceScan() {
 		clearError();
 	}
 
-	IVector<hstring> requestedProperties = single_threaded_vector<hstring>({ L"System.Devices.Aep.DeviceAddress", L"System.Devices.Aep.IsConnected", L"System.Devices.Aep.Bluetooth.Le.IsConnectable", L"System.Devices.Aep.SignalStrength"});
+	IVector<hstring> requestedProperties = single_threaded_vector<hstring>({ L"System.Devices.Aep.DeviceAddress", L"System.Devices.Aep.Bluetooth.Le.IsConnectable", L"System.Devices.Aep.IsConnected", L"System.Devices.Aep.SignalStrength"});
 	hstring aqsAllBluetoothLEDevices = L"(System.Devices.Aep.ProtocolId:=\"{bb7bb05e-5972-42b5-94fc-76eaa7084d49}\")"; // list Bluetooth LE devices
 	deviceWatcher = DeviceInformation::CreateWatcher(
 		aqsAllBluetoothLEDevices,
