@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 using UnityEngine;
+
 
 public class BLE
 {
@@ -15,24 +16,33 @@ public class BLE
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         public struct DeviceUpdate
         {
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 100)]
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
             public string id;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 18)]
-            public string mac;
-            [MarshalAs(UnmanagedType.I1)]
+
+            [MarshalAs(UnmanagedType.I8)]
+            public ulong mac;
+
+			[MarshalAs(UnmanagedType.I1)]
             public bool isConnected;
+
             [MarshalAs(UnmanagedType.I1)]
             public bool isConnectedUpdated;
+
             [MarshalAs(UnmanagedType.I1)]
             public bool isConnectable;
+
             [MarshalAs(UnmanagedType.I1)]
             public bool isConnectableUpdated;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 50)]
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
             public string name;
+
             [MarshalAs(UnmanagedType.I1)]
             public bool nameUpdated;
+
             [MarshalAs(UnmanagedType.I4)]
             public int signalStrength;
+
             [MarshalAs(UnmanagedType.I1)]
             public bool hasSignalStrength;
         }
@@ -138,17 +148,18 @@ public class BLE
             throw new InvalidOperationException("a new scan can not be started from a callback of the previous scan");
         else if (scanThread != null)
             throw new InvalidOperationException("the old scan is still running");
+
         currentScan.Found = null;
         currentScan.Finished = null;
+
         scanThread = new Thread(() =>
         {
             Impl.StartDeviceScan();
             Impl.DeviceUpdate res = new Impl.DeviceUpdate();
             List<string> deviceIds = new List<string>();
-            Dictionary<string, string> deviceMac = new Dictionary<string, string>();
+            Dictionary<string, ulong> deviceMac = new Dictionary<string, ulong>();
             Dictionary<string, string> deviceName = new Dictionary<string, string>();
             Dictionary<string, bool> deviceIsConnectable = new Dictionary<string, bool>();
-            Impl.ScanStatus status;
 
             while (Impl.PollDevice(out res, true) != Impl.ScanStatus.FINISHED)
             {
@@ -175,7 +186,7 @@ public class BLE
                 if (currentScan.cancelled)
                     break;
 
-                Console.WriteLine(res.mac + " " + (res.hasSignalStrength ? res.signalStrength.ToString() : "(no rssi)"));
+                Console.WriteLine(MacToString(res.mac) + " " + (res.hasSignalStrength ? res.signalStrength.ToString() : "(no rssi)"));
             }
             currentScan.Finished?.Invoke();
             scanThread = null;
@@ -265,7 +276,19 @@ public class BLE
         return buf.msg;
     }
 
-    ~BLE()
+	public static string MacToString(ulong number)
+    {
+        string str = string.Join(":",
+				BitConverter.GetBytes(number)
+					.Reverse()
+					.Select(b => b.ToString("X2"))
+	                .ToArray())
+            .Substring(6);
+
+        return str;
+	}
+
+	~BLE()
     {
         Close();
     }

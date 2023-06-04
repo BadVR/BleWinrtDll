@@ -70,14 +70,17 @@ guid make_guid(const wchar_t* value)
 
 mutex errorLock;
 wchar_t last_error[2048];
-struct CharacteristicCacheEntry {
+struct CharacteristicCacheEntry
+{
 	GattCharacteristic characteristic = nullptr;
 };
-struct ServiceCacheEntry {
+struct ServiceCacheEntry
+{
 	GattDeviceService service = nullptr;
 	map<long, CharacteristicCacheEntry> characteristics = { };
 };
-struct DeviceCacheEntry {
+struct DeviceCacheEntry
+{
 	BluetoothLEDevice device = nullptr;
 	map<long, ServiceCacheEntry> services = { };
 };
@@ -94,12 +97,14 @@ long hsh(wchar_t* wstr)
 	return hash;
 }
 
-void clearError() {
+void clearError()
+{
 	lock_guard error_lock(errorLock);
 	wcscpy_s(last_error, L"Ok");
 }
 
-void saveError(const wchar_t* message, ...) {
+void saveError(const wchar_t* message, ...)
+{
 	lock_guard error_lock(errorLock);
 	va_list args;
 	va_start(args, message);
@@ -108,7 +113,8 @@ void saveError(const wchar_t* message, ...) {
 	wcout << last_error << endl;
 }
 
-IAsyncOperation<BluetoothLEDevice> retrieveDevice(wchar_t* deviceId) {
+IAsyncOperation<BluetoothLEDevice> retrieveDevice(wchar_t* deviceId)
+{
 	if (cache.count(hsh(deviceId)))
 		co_return cache[hsh(deviceId)].device;
 	// !!!! BluetoothLEDevice.FromIdAsync may prompt for consent, in this case bluetooth will fail in unity!
@@ -123,7 +129,9 @@ IAsyncOperation<BluetoothLEDevice> retrieveDevice(wchar_t* deviceId) {
 		co_return cache[hsh(deviceId)].device;
 	}
 }
-IAsyncOperation<GattDeviceService> retrieveService(wchar_t* deviceId, wchar_t* serviceId) {
+
+IAsyncOperation<GattDeviceService> retrieveService(wchar_t* deviceId, wchar_t* serviceId)
+{
 	auto device = co_await retrieveDevice(deviceId);
 	if (device == nullptr)
 		co_return nullptr;
@@ -144,7 +152,9 @@ IAsyncOperation<GattDeviceService> retrieveService(wchar_t* deviceId, wchar_t* s
 		co_return cache[hsh(deviceId)].services[hsh(serviceId)].service;
 	}
 }
-IAsyncOperation<GattCharacteristic> retrieveCharacteristic(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId) {
+
+IAsyncOperation<GattCharacteristic> retrieveCharacteristic(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId)
+{
 	auto service = co_await retrieveService(deviceId, serviceId);
 	if (service == nullptr)
 		co_return nullptr;
@@ -204,7 +214,8 @@ queue<BLEData> dataQueue{};
 mutex dataQueueLock;
 condition_variable dataQueueSignal;
 
-bool QuittableWait(condition_variable& signal, unique_lock<mutex>& waitLock) {
+bool QuittableWait(condition_variable& signal, unique_lock<mutex>& waitLock)
+{
 	{
 		lock_guard quit_lock(quitLock);
 		if (quitFlag)
@@ -215,7 +226,8 @@ bool QuittableWait(condition_variable& signal, unique_lock<mutex>& waitLock) {
 	return quitFlag;
 }
 
-void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo) {
+void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo)
+{
 	DeviceUpdate deviceUpdate;
 
 	wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), deviceInfo.Id().c_str());
@@ -224,7 +236,9 @@ void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo) {
 	deviceUpdate.nameUpdated = true;
 
 	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.DeviceAddress")) {
-		wcscpy_s(deviceUpdate.mac, sizeof(deviceUpdate.mac) / sizeof(wchar_t), unbox_value<hstring>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.DeviceAddress")).c_str());
+		hstring mac_string = unbox_value<hstring>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.DeviceAddress")).c_str();
+		
+		deviceUpdate.mac = ConvertMacAddressToULong(mac_string);
 	}
 	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable")) {
 		deviceUpdate.isConnectable = unbox_value<bool>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"));
@@ -251,13 +265,15 @@ void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo) {
 		deviceQueueSignal.notify_one();
 	}
 }
-void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate) {
+
+void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate)
+{
 	DeviceUpdate deviceUpdate;
 
 	wcscpy_s(deviceUpdate.id, sizeof(deviceUpdate.id) / sizeof(wchar_t), deviceInfoUpdate.Id().c_str());
 
 	//null out the mac in an update since it's not available anywhere
-	deviceUpdate.mac[0] = 0;
+	deviceUpdate.mac = 0;
 	
 	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable")) {
 		deviceUpdate.isConnectable = unbox_value<bool>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"));
@@ -283,11 +299,14 @@ void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate deviceI
 		deviceQueueSignal.notify_one();
 	}
 }
-void DeviceWatcher_EnumerationCompleted(DeviceWatcher sender, IInspectable const&) {
+
+void DeviceWatcher_EnumerationCompleted(DeviceWatcher sender, IInspectable const&)
+{
 	StopDeviceScan();
 }
 
-void StartDeviceScan() {
+void StartDeviceScan()
+{
 	// as this is the first function that must be called, if Quit() was called before, assume here that the client wants to restart
 	{
 		lock_guard lock(quitLock);
@@ -311,7 +330,8 @@ void StartDeviceScan() {
 	deviceWatcher.Start();
 }
 
-ScanStatus PollDevice(DeviceUpdate* device, bool block) {
+ScanStatus PollDevice(DeviceUpdate* device, bool block)
+{
 	ScanStatus res;
 	unique_lock<mutex> lock(deviceQueueLock);
 	if (block && deviceQueue.empty() && !deviceScanFinished)
@@ -329,7 +349,8 @@ ScanStatus PollDevice(DeviceUpdate* device, bool block) {
 	return res;
 }
 
-void StopDeviceScan() {
+void StopDeviceScan()
+{
 	lock_guard lock(deviceQueueLock);
 	if (deviceWatcher != nullptr) {
 		deviceWatcherAddedRevoker.revoke();
@@ -342,7 +363,8 @@ void StopDeviceScan() {
 	deviceQueueSignal.notify_one();
 }
 
-fire_and_forget ScanServicesAsync(wchar_t* deviceId) {
+fire_and_forget ScanServicesAsync(wchar_t* deviceId)
+{
 	{
 		lock_guard queueGuard(serviceQueueLock);
 		serviceScanFinished = false;
@@ -384,11 +406,14 @@ fire_and_forget ScanServicesAsync(wchar_t* deviceId) {
 		serviceQueueSignal.notify_one();
 	}
 }
-void ScanServices(wchar_t* deviceId) {
+
+void ScanServices(wchar_t* deviceId)
+{
 	ScanServicesAsync(deviceId);
 }
 
-ScanStatus PollService(Service* service, bool block) {
+ScanStatus PollService(Service* service, bool block)
+{
 	ScanStatus res;
 	unique_lock<mutex> lock(serviceQueueLock);
 	if (block && serviceQueue.empty() && !serviceScanFinished)
@@ -406,7 +431,8 @@ ScanStatus PollService(Service* service, bool block) {
 	return res;
 }
 
-fire_and_forget ScanCharacteristicsAsync(wchar_t* deviceId, wchar_t* serviceId) {
+fire_and_forget ScanCharacteristicsAsync(wchar_t* deviceId, wchar_t* serviceId)
+{
 	{
 		lock_guard lock(characteristicQueueLock);
 		characteristicScanFinished = false;
@@ -465,11 +491,13 @@ fire_and_forget ScanCharacteristicsAsync(wchar_t* deviceId, wchar_t* serviceId) 
 	}
 }
 
-void ScanCharacteristics(wchar_t* deviceId, wchar_t* serviceId) {
+void ScanCharacteristics(wchar_t* deviceId, wchar_t* serviceId)
+{
 	ScanCharacteristicsAsync(deviceId, serviceId);
 }
 
-ScanStatus PollCharacteristic(Characteristic* characteristic, bool block) {
+ScanStatus PollCharacteristic(Characteristic* characteristic, bool block)
+{
 	ScanStatus res;
 	unique_lock<mutex> lock(characteristicQueueLock);
 	if (block && characteristicQueue.empty() && !characteristicScanFinished)
@@ -509,7 +537,9 @@ void Characteristic_ValueChanged(GattCharacteristic const& characteristic, GattV
 		dataQueueSignal.notify_one();
 	}
 }
-fire_and_forget SubscribeCharacteristicAsync(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId, bool* result) {
+
+fire_and_forget SubscribeCharacteristicAsync(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId, bool* result)
+{
 	try {
 		auto characteristic = co_await retrieveCharacteristic(deviceId, serviceId, characteristicId);
 		if (characteristic != nullptr) {
@@ -532,7 +562,9 @@ fire_and_forget SubscribeCharacteristicAsync(wchar_t* deviceId, wchar_t* service
 	}
 	subscribeQueueSignal.notify_one();
 }
-bool SubscribeCharacteristic(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId, bool block) {
+
+bool SubscribeCharacteristic(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId, bool block)
+{
 	unique_lock<mutex> lock(subscribeQueueLock);
 	bool result = false;
 	SubscribeCharacteristicAsync(deviceId, serviceId, characteristicId, block ? &result : 0);
@@ -542,7 +574,8 @@ bool SubscribeCharacteristic(wchar_t* deviceId, wchar_t* serviceId, wchar_t* cha
 	return result;
 }
 
-bool PollData(BLEData* data, bool block) {
+bool PollData(BLEData* data, bool block) 
+{
 	unique_lock<mutex> lock(dataQueueLock);
 	if (block && dataQueue.empty())
 		if (QuittableWait(dataQueueSignal, lock))
@@ -555,7 +588,8 @@ bool PollData(BLEData* data, bool block) {
 	return false;
 }
 
-fire_and_forget SendDataAsync(BLEData data, condition_variable* signal, bool* result) {
+fire_and_forget SendDataAsync(BLEData data, condition_variable* signal, bool* result)
+{
 	try {
 		auto characteristic = co_await retrieveCharacteristic(data.deviceId, data.serviceUuid, data.characteristicUuid);
 		if (characteristic != nullptr) {
@@ -577,7 +611,9 @@ fire_and_forget SendDataAsync(BLEData data, condition_variable* signal, bool* re
 	if (signal != 0)
 		signal->notify_one();
 }
-bool SendData(BLEData* data, bool block) {
+
+bool SendData(BLEData* data, bool block)
+{
 	mutex _mutex;
 	unique_lock<mutex> lock(_mutex);
 	condition_variable signal;
@@ -590,7 +626,8 @@ bool SendData(BLEData* data, bool block) {
 	return result;
 }
 
-void Quit() {
+void Quit()
+{
 	{
 		lock_guard lock(quitLock);
 		quitFlag = true;
@@ -632,7 +669,28 @@ void Quit() {
 	cache.clear();
 }
 
-void GetError(ErrorMessage* buf) {
+void GetError(ErrorMessage* buf)
+{
 	lock_guard error_lock(errorLock);
 	wcscpy_s(buf->msg, last_error);
+}
+
+uint64_t ConvertMacAddressToULong(const winrt::hstring& macAddress)
+{
+	std::wstring macAddressStr(macAddress);
+	std::wstring macWithoutDelimiter;
+
+	for (wchar_t ch : macAddressStr)
+	{
+		if (ch != L':')
+		{
+			macWithoutDelimiter += ch;
+		}
+	}
+
+	std::wstringstream ssConverted(macWithoutDelimiter);
+	uint64_t result;
+	ssConverted >> std::hex >> result;
+
+	return result;
 }

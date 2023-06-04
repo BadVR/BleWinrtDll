@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
+
 
 namespace DebugBle
 {
@@ -11,7 +8,7 @@ namespace DebugBle
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("You can use this program to test the BleWinrtDll.dll. Make sure your Computer has Bluetooth enabled.");
+            Console.WriteLine("You can use this program to test the BleWinrtDll.dll");
 
             BLE ble = new BLE();
             string deviceId = null;

@@ -2,14 +2,15 @@
 
 #include "stdafx.h"
 
-struct DeviceUpdate {
-	wchar_t id[100];
-	wchar_t mac[18];
+struct DeviceUpdate
+{
+	wchar_t id[256];
+	uint64_t mac;
 	bool isConnected = false;
 	bool isConnectedUpdated = false;
 	bool isConnectable = false;
 	bool isConnectableUpdated = false;
-	wchar_t name[50];
+	wchar_t name[256];
 	bool nameUpdated = false;
 	int32_t signalStrength;
 	bool hasSignalStrength = false;
@@ -37,6 +38,8 @@ struct ErrorMessage {
 };
 
 enum class ScanStatus { PROCESSING, AVAILABLE, FINISHED };
+
+uint64_t ConvertMacAddressToULong(const winrt::hstring& macAddress);
 
 extern "C" {
 

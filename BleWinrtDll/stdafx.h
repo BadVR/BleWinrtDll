@@ -16,11 +16,14 @@
 // Hier auf zusätzliche Header verweisen, die das Programm benötigt.
 
 #include <iostream>
+#include <iomanip>
+#include <string>
+#include <sstream>
 #include <queue>
 #include <map>
 #include <mutex>
 #include <condition_variable>
-
+#include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Web.Syndication.h>
 
