@@ -4,28 +4,29 @@
 
 struct DeviceUpdate
 {
-	wchar_t id[256];
-	uint64_t mac;
-	bool isConnected = false;
-	bool isConnectedUpdated = false;
+	uint64_t mac = 0;
 	bool isConnectable = false;
-	bool isConnectableUpdated = false;
 	wchar_t name[256];
-	bool nameUpdated = false;
-	int32_t signalStrength;
-	bool hasSignalStrength = false;
+	int16_t rssi = 0;
+	int16_t tx = 0;
+	uint8_t advData[32];
+	uint32_t advDataLen = 0;
+	uint8_t services[64]; //four 128-bit services
 };
 
-struct Service {
+struct Service
+{
 	wchar_t uuid[100];
 };
 
-struct Characteristic {
+struct Characteristic
+{
 	wchar_t uuid[100];
 	wchar_t userDescription[100];
 };
 
-struct BLEData {
+struct BLEData
+{
 	uint8_t buf[512];
 	uint16_t size;
 	wchar_t deviceId[256];
@@ -39,11 +40,9 @@ struct ErrorMessage {
 
 enum class ScanStatus { PROCESSING, AVAILABLE, FINISHED };
 
-uint64_t ConvertMacAddressToULong(const winrt::hstring& macAddress);
-
 extern "C" {
 
-	__declspec(dllexport) void StartDeviceScan();
+	__declspec(dllexport) void StartDeviceScan(wchar_t* requiredServices[], std::uint32_t n);
 
 	__declspec(dllexport) ScanStatus PollDevice(DeviceUpdate* device, bool block);
 
@@ -57,13 +56,20 @@ extern "C" {
 
 	__declspec(dllexport) ScanStatus PollCharacteristic(Characteristic* characteristic, bool block);
 
+	/* Return value only makes sense if block=true */
 	__declspec(dllexport) bool SubscribeCharacteristic(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId, bool block);
 
 	__declspec(dllexport) bool PollData(BLEData* data, bool block);
 
 	__declspec(dllexport) bool SendData(BLEData* data, bool block);
 
+	__declspec(dllexport) void Disconnect(wchar_t* deviceId);
+
 	__declspec(dllexport) void Quit();
 
 	__declspec(dllexport) void GetError(ErrorMessage* buf);
+
+	using DebugLogCallback = void(const char*);
+	// A log callback for debugging.
+	__declspec(dllexport) void RegisterLogCallback(DebugLogCallback cb);
 }

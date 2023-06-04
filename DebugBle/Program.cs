@@ -8,17 +8,15 @@ namespace DebugBle
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("You can use this program to test the BleWinrtDll.dll");
+            Console.WriteLine("You can use this program to test the BleWinrtDll.dll. Make sure your Computer has Bluetooth enabled.");
 
             BLE ble = new BLE();
             string deviceId = null;
 
             BLE.BLEScan scan = BLE.ScanDevices();
-            scan.Found = (_deviceId, deviceName) =>
+            scan.Found = (mac, deviceName) =>
             {
-                Console.WriteLine("found device with name: " + deviceName);
-                if (deviceId == null && deviceName == "CynteractGlove")
-                    deviceId = _deviceId;
+                Console.WriteLine($"found device {mac}: {deviceName}");
             };
             scan.Finished = () =>
             {

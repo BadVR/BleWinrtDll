@@ -6,6 +6,3 @@ Debug/
 x64/
 
 *.aps
-*.pdb
-*.exp
-*.lib

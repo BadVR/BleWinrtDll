@@ -16,39 +16,33 @@ public class BLE
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         public struct DeviceUpdate
         {
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-            public string id;
-
-            [MarshalAs(UnmanagedType.I8)]
-            public ulong mac;
+			[MarshalAs(UnmanagedType.I8)]
+			public ulong mac;
 
 			[MarshalAs(UnmanagedType.I1)]
-            public bool isConnected;
-
-            [MarshalAs(UnmanagedType.I1)]
-            public bool isConnectedUpdated;
-
-            [MarshalAs(UnmanagedType.I1)]
             public bool isConnectable;
-
-            [MarshalAs(UnmanagedType.I1)]
-            public bool isConnectableUpdated;
 
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
             public string name;
 
-            [MarshalAs(UnmanagedType.I1)]
-            public bool nameUpdated;
+            [MarshalAs(UnmanagedType.I2)]
+            public short rssi;
 
-            [MarshalAs(UnmanagedType.I4)]
-            public int signalStrength;
+			[MarshalAs(UnmanagedType.I2)]
+			public short tx;
 
-            [MarshalAs(UnmanagedType.I1)]
-            public bool hasSignalStrength;
-        }
+			[MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+			public byte[] advData;
 
-        [DllImport("BleWinrtDll.dll", EntryPoint = "StartDeviceScan")]
-        public static extern void StartDeviceScan();
+			[MarshalAs(UnmanagedType.I4)]
+			public uint advDataLen;
+
+			[MarshalAs(UnmanagedType.ByValArray, SizeConst = 64)]
+			public byte[] services;
+		}
+
+        [DllImport("BleWinrtDll.dll", EntryPoint = "StartDeviceScan", CharSet = CharSet.Unicode)]
+        public static extern void StartDeviceScan(string[] requiredServices, int size);
 
         [DllImport("BleWinrtDll.dll", EntryPoint = "PollDevice")]
         public static extern ScanStatus PollDevice(out DeviceUpdate device, bool block);
@@ -108,6 +102,9 @@ public class BLE
         [DllImport("BleWinrtDll.dll", EntryPoint = "SendData")]
         public static extern bool SendData(in BLEData data, bool block);
 
+        [DllImport("BleWinrtDll.dll", EntryPoint = "Disconnect", CharSet = CharSet.Unicode)]
+        public static extern void Disconnect(string deviceId);
+
         [DllImport("BleWinrtDll.dll", EntryPoint = "Quit")]
         public static extern void Quit();
 
@@ -120,7 +117,12 @@ public class BLE
 
         [DllImport("BleWinrtDll.dll", EntryPoint = "GetError")]
         public static extern void GetError(out ErrorMessage buf);
-    }
+
+        public delegate void DebugLogCallback(string str);
+
+		[DllImport("BleWinrtDll.dll", EntryPoint = "RegisterLogCallback")]
+		public static extern void RegisterLogCallback(DebugLogCallback callback);
+	}
 
     public static Thread scanThread;
     public static BLEScan currentScan = new BLEScan();
@@ -128,11 +130,17 @@ public class BLE
 
     public class BLEScan
     {
-        public delegate void FoundDel(string deviceId, string deviceName);
-        public delegate void FinishedDel();
-        public FoundDel Found;
-        public FinishedDel Finished;
+        public Action<ulong, string> Found;
+        public Action Finished;
         internal bool cancelled = false;
+
+        public BLEScan()
+        {
+            Impl.RegisterLogCallback((string str) =>
+            {
+                Console.WriteLine(str);
+            });
+		}
 
         public void Cancel()
         {
@@ -148,45 +156,36 @@ public class BLE
             throw new InvalidOperationException("a new scan can not be started from a callback of the previous scan");
         else if (scanThread != null)
             throw new InvalidOperationException("the old scan is still running");
-
         currentScan.Found = null;
         currentScan.Finished = null;
+        string[] requiredServices = { "0000180f-0000-1000-8000-00805f9b34fb" };
 
         scanThread = new Thread(() =>
         {
-            Impl.StartDeviceScan();
+            Impl.StartDeviceScan(requiredServices, 0);
             Impl.DeviceUpdate res = new Impl.DeviceUpdate();
-            List<string> deviceIds = new List<string>();
-            Dictionary<string, ulong> deviceMac = new Dictionary<string, ulong>();
-            Dictionary<string, string> deviceName = new Dictionary<string, string>();
-            Dictionary<string, bool> deviceIsConnectable = new Dictionary<string, bool>();
+            HashSet<ulong> deviceMacs = new HashSet<ulong>();
+
+			Dictionary<ulong, string> deviceName = new Dictionary<ulong, string>();
+            Dictionary<ulong, bool> deviceIsConnectable = new Dictionary<ulong, bool>();
 
             while (Impl.PollDevice(out res, true) != Impl.ScanStatus.FINISHED)
             {
-                if (!deviceIds.Contains(res.id))
+                if (deviceMacs.Add(res.mac))
                 {
-                    deviceIds.Add(res.id);
-                    deviceName[res.id] = "";
-                    deviceIsConnectable[res.id] = false;
-                    deviceMac[res.id] = res.mac;
-                }
-                else
-                {
-                    res.mac = deviceMac[res.id];
+                    deviceName[res.mac] = "";
+                    deviceIsConnectable[res.mac] = false;
                 }
 
-                if (res.nameUpdated)
-                    deviceName[res.id] = res.name;
-                if (res.isConnectableUpdated)
-                    deviceIsConnectable[res.id] = res.isConnectable;
+
+                Console.WriteLine($"Device found: {MacToString(res.mac)} {res.name} / {res.rssi} [{res.tx}]");
+
                 // connectable device
-                if (deviceName[res.id] != "" && deviceIsConnectable[res.id] == true)
-                    currentScan.Found?.Invoke(res.id, deviceName[res.id]);
+                if (deviceIsConnectable[res.mac] == true)
+                    currentScan.Found?.Invoke(res.mac, deviceName[res.mac]);
                 // check if scan was cancelled in callback
                 if (currentScan.cancelled)
                     break;
-
-                Console.WriteLine(MacToString(res.mac) + " " + (res.hasSignalStrength ? res.signalStrength.ToString() : "(no rssi)"));
             }
             currentScan.Finished?.Invoke();
             scanThread = null;
@@ -277,16 +276,17 @@ public class BLE
     }
 
 	public static string MacToString(ulong number)
-    {
-        string str = string.Join(":",
+	{
+		string str = string.Join(":",
 				BitConverter.GetBytes(number)
 					.Reverse()
 					.Select(b => b.ToString("X2"))
-	                .ToArray())
-            .Substring(6);
+					.ToArray())
+			.Substring(6);
 
-        return str;
+		return str;
 	}
+
 
 	~BLE()
     {
