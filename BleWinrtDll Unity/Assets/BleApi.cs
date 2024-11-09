@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-using UnityEngine;
+
 
 public class BleApi
 {
+    static readonly List<string> deviceIds = new();
+    static readonly Dictionary<string, string> deviceMac = new();
+
     // dll calls
     public enum ScanStatus { PROCESSING, AVAILABLE, FINISHED };
 
@@ -15,23 +15,60 @@ public class BleApi
     {
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 100)]
         public string id;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 18)]
+        public string mac;
+
+        [MarshalAs(UnmanagedType.I1)]
+        public bool isConnected;
+
+        [MarshalAs(UnmanagedType.I1)]
+        public bool isConnectedUpdated;
+
         [MarshalAs(UnmanagedType.I1)]
         public bool isConnectable;
+
         [MarshalAs(UnmanagedType.I1)]
         public bool isConnectableUpdated;
+
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 50)]
         public string name;
+
         [MarshalAs(UnmanagedType.I1)]
         public bool nameUpdated;
+
         [MarshalAs(UnmanagedType.I4)]
         public int signalStrength;
+
+        [MarshalAs(UnmanagedType.I1)]
+        public bool hasSignalStrength;
     }
 
     [DllImport("BleWinrtDll.dll", EntryPoint = "StartDeviceScan")]
     public static extern void StartDeviceScan();
 
     [DllImport("BleWinrtDll.dll", EntryPoint = "PollDevice")]
-    public static extern ScanStatus PollDevice(ref DeviceUpdate device, bool block);
+    public static extern ScanStatus _PollDevice(ref DeviceUpdate device, bool block);
+
+    public static ScanStatus PollDevice(ref DeviceUpdate device, bool block)
+	{
+        ScanStatus status = _PollDevice(ref device, block);
+
+        if (status == ScanStatus.AVAILABLE)
+        {
+            if (!deviceIds.Contains(device.id))
+            {
+                deviceIds.Add(device.id);
+                deviceMac.Add(device.id, device.mac);
+            }
+            else
+            {
+                device.mac = deviceMac[device.id];
+            }
+        }
+
+        return status;
+	}
 
     [DllImport("BleWinrtDll.dll", EntryPoint = "StopDeviceScan")]
     public static extern void StopDeviceScan();
