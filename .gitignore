@@ -4,5 +4,6 @@ bin/
 obj/
 Debug/
 x64/
+Release/
 
 *.aps
