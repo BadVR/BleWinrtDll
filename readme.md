@@ -8,17 +8,33 @@ This VisualStudio-project compiles to a C++-dll that can be imported into Unity.
 
 The `Demo.scene` in this repo uses non-blocking calls to avoid creating Threads. I would recommend to use threads, though. After getting acquainted with the standard C# Thread API and after making sure you're closing all your threads `OnApplicationQuit` (Unity API) to avoid Unity Editor freezes, using them is the easier workflow for BLE in my opinion. You'll need less lines of code and you can have less latency. For a threaded version, you can try out [Joelx's Unity Ble Demo](https://github.com/Joelx/BleWinrtDll-Unity-Demo).
 
+If you distribute a Windows Standalone build to a different device, please ensure that your application requires the latest Microsoft Visual C++ Redistributable to be installed.
+
 ## Build
 
 There is a prebuilt dll included in this repo, `BleWinrtDll Unity\Assets\BleWinrtDll.dll` or `DebugBle\BleWinrtDll.dll` (both are the same). But you can also build the dll yourself in VisualStudio. Follow these steps:
 
-- Open the file BleWinrtDll.sln with VisualStudio (tested with Community 2019). You may be asked to install VisualStudio components when you open the project. The needed components are C++ Desktop and UWP, or if you want to save space, just the single components "MSVC C++ Buildtools", "Windows 10 SDK", ".NET Framework 4.7.2 SDK".
+- Open the file BleWinrtDll.sln with VisualStudio (tested with Community 2019). You may be asked to install VisualStudio components when you open the project. The needed components are C++ Desktop and UWP, or if you want to save space, just the single components "MSVC C++ Buildtools", "Windows 10 SDK"/"Windows 11 SDK" (depending on your os), ".NET Framework 4.7.2 SDK".
 - Choose configuration "Release" and "x64" (I think it must match your machine architecture).
 - In the project explorer, right-click the project "BleWinrtDll" and choose "Compile".
 - If you run into the error `wait_for is not a member of winrt::impl`, follow the steps on https://github.com/adabru/BleWinrtDll/issues/16 and leave a thumbs up. If enough thumbs accumulate, someone or me will try to make that more convenient.
 - Wait until the compilation finishes successfully.
 
 Now you find the file `BleWinrtDll.dll` in the folder `x64/Release`. You can copy this dll into your Unity-project. To try it out, you can also copy the file into the `DebugBle` folder (replacing the existing file) and start the DebugBle project. If your computer has bluetooth enabled, you should see some scanned bluetooth devices. If you modify the file `DebugBle/Program.cs` and change the device name, service UUID and characteristic UUIDs to match your specific BLE device, you should also receive some packages from your BLE device.
+
+## FAQ
+
+> Q: I try to read data but nothing is returned.
+
+This dll doesn't implement ReadValue. You can add it yourself, see https://github.com/adabru/BleWinrtDll/issues/45#issuecomment-1479295183 . This dll implements SubscribeValue. After the subscription you can poll for data updates.
+
+> Q: Sending data to the device does not work.
+
+Try replacing `WriteWithoutResponse` with `WriteWithResponse` (https://github.com/adabru/BleWinrtDll/issues/66#issuecomment-2159524703).
+
+> Q: I want to run it on HoloLens 2.
+
+You need specific configuration for that. See https://github.com/adabru/BleWinrtDll/issues/23 on how to do that.
 
 ## Alternatives
 [win32 Bluetooth API](https://docs.microsoft.com/en-us/windows/win32/api/_bluetooth/), as used by <https://github.com/DerekGn/WinBle> (thanks to david-sackstein).
