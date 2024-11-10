@@ -1,19 +1,25 @@
 ﻿using System;
-using System.Threading;
 
 
 namespace DebugBle
 {
     class Program
     {
-        static void Main(string[] args)
+        static BleWinrt ble = new BleWinrt();
+
+		static void Main(string[] args)
         {
-            Console.WriteLine("You can use this program to test the BleWinrtDll.dll. Make sure your Computer has Bluetooth enabled.");
+			Console.WriteLine($"scan started");
 
-            BLE ble = new BLE();
-            string deviceId = null;
+            ble.DeviceAdded += OnAdded;
+            ble.DeviceUpdated += OnUpdated;
+            ble.DeviceRemoved += OnRemoved;
+            ble.StartScan();
 
-            BLE.BLEScan scan = BLE.ScanDevices();
+			//string deviceId = null;
+
+			//BLE.BLEScan scan = BLE.ScanDevices();
+			/*
             scan.Found = (mac, deviceName) =>
             {
                 Console.WriteLine($"found device {mac}: {deviceName}");
@@ -50,9 +56,33 @@ namespace DebugBle
                 Console.WriteLine(BLE.GetError());
                 Thread.Sleep(5);
             }
-
-            Console.WriteLine("Press enter to exit the program...");
+*/
+			Console.WriteLine("Press enter to exit the program...");
             Console.ReadLine();
         }
-    }
+
+        static void OnAdded(BleWinrt.DeviceInfo deviceInfo)
+        {
+            Console.WriteLine($"+ {deviceInfo}");
+        }
+		static void OnRemoved(BleWinrt.DeviceInfoUpdate deviceInfoUpdate)
+		{
+			Console.WriteLine($"- {deviceInfoUpdate}");
+		}
+
+		static void OnUpdated(BleWinrt.DeviceInfoUpdate deviceInfoUpdate)
+		{
+			Console.WriteLine($". {deviceInfoUpdate}");
+		}
+
+		static void OnCompleted()
+		{
+			Console.WriteLine($"scan completed");
+		}
+
+		static void OnStopped()
+        {
+			Console.WriteLine($"scan stopped");
+		}
+	}
 }

@@ -46,7 +46,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
-    <Compile Include="BLE.cs" />
+    <Compile Include="BleWinrt.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="UnityEngine.cs" />
   </ItemGroup>

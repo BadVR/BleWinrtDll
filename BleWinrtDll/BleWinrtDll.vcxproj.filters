@@ -21,10 +21,22 @@
     <ClInclude Include="targetver.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="BleWinrtDll.h">
+    <ClInclude Include="ble-winrt.h">
       <Filter>Headers</Filter>
     </ClInclude>
     <ClInclude Include="resource.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="serialization.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="logging.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="carriers.h">
+      <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="cache.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>
@@ -32,10 +44,19 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="BleWinrtDll.cpp">
+    <ClCompile Include="ble-winrt.cpp">
       <Filter>Source</Filter>
     </ClCompile>
     <ClCompile Include="dllmain.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="serialization.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="logging.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="cache.cpp">
       <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>

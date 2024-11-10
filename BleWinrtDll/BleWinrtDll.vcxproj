@@ -154,14 +154,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="BleWinrtDll.h" />
+    <ClInclude Include="ble-winrt.h" />
+    <ClInclude Include="cache.h" />
+    <ClInclude Include="carriers.h" />
+    <ClInclude Include="logging.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="serialization.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="BleWinrtDll.cpp" />
+    <ClCompile Include="ble-winrt.cpp" />
+    <ClCompile Include="cache.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="logging.cpp" />
+    <ClCompile Include="serialization.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
