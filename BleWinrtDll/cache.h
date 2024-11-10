@@ -20,19 +20,19 @@ struct CharacteristicCacheEntry
 struct ServiceCacheEntry
 {
 	GattDeviceService service = nullptr;
-	map<long, CharacteristicCacheEntry> characteristics = { };
+	map<guid, CharacteristicCacheEntry> characteristics = { };
 };
 
 struct DeviceCacheEntry
 {
 	BluetoothLEDevice device = nullptr;
-	map<long, ServiceCacheEntry> services = { };
+	map<guid, ServiceCacheEntry> services = { };
 };
 
 
-IAsyncOperation<BluetoothLEDevice> RetrieveDevice(wchar_t* id);
-IAsyncOperation<GattDeviceService> RetrieveService(wchar_t* id, wchar_t* serviceUuid);
-IAsyncOperation<GattCharacteristic> RetrieveCharacteristic(wchar_t* id, wchar_t* serviceUuid, wchar_t* characteristicUuid);
+IAsyncOperation<BluetoothLEDevice> RetrieveDevice(uint64_t id);
+IAsyncOperation<GattDeviceService> RetrieveService(uint64_t id, guid serviceUuid);
+IAsyncOperation<GattCharacteristic> RetrieveCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid);
 
-void RemoveFromCache(wchar_t* id);
+void RemoveFromCache(uint64_t id);
 void ClearCache();

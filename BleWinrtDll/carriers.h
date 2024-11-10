@@ -1,50 +1,28 @@
 #pragma once
 
+using namespace winrt;
 using namespace winrt::Windows::Devices::Bluetooth::GenericAttributeProfile;
 
 const int ID_SIZE = 128;
 const int UUID_SIZE = 100;
 
-struct DeviceInfo
+struct BleAdvert
 {
-	wchar_t id[ID_SIZE];
-	wchar_t name[ID_SIZE];
 	uint64_t mac = 0;
+	wchar_t name[ID_SIZE];
 
 	int32_t signalStrength = 0;
-	bool signalStrengthPresent = false;
-
-	bool isConnected = false;
-	bool isConnectedPresent = false;
-
-	bool isConnectable = false;
-	bool isConnectablePresent = false;
-};
-
-struct DeviceInfoUpdate
-{
-	wchar_t id[ID_SIZE];
-	wchar_t name[ID_SIZE];
-	bool namePresent = false;
-
-	int32_t signalStrength;
-	bool signalStrengthPresent = false;
-
-	bool isConnected = false;
-	bool isConnectedPresent = false;
-
-	bool isConnectable = false;
-	bool isConnectablePresent = false;
+	int16_t powerLevel = 0;
 };
 
 struct BleService
 {
-	wchar_t serviceUuid[UUID_SIZE];
+	guid serviceUuid;
 };
 
 struct BleCharacteristic
 {
-	wchar_t characteristicUuid[UUID_SIZE];
+	guid characteristicUuid;
 	wchar_t userDescription[ID_SIZE];
 };
 
@@ -53,10 +31,8 @@ struct BleData
 	uint8_t buf[512];
 	uint16_t size;
 
-	wchar_t id[ID_SIZE];
-
-	wchar_t serviceUuid[UUID_SIZE];
-	wchar_t characteristicUuid[UUID_SIZE];
+	guid serviceUuid;
+	guid characteristicUuid;
 };
 
 struct Subscription

@@ -1,13 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 
 public class BleWinrt
 {
-	const int ID_SIZE = 128;
-	const int UUID_SIZE = 100;
-
 	public delegate void LogCallback(string log);
 	public delegate void ErrorCallback(string err);
 
@@ -18,12 +17,10 @@ public class BleWinrt
 	public static extern void RegisterErrorCallback(ErrorCallback logCb);
 
 
-	public delegate void DeviceInfoCallback(DeviceInfo deviceInfo);
-	public delegate void DeviceUpdateCallback(DeviceInfoUpdate deviceInfoUpdate);
-	public delegate void CompletedCallback();
+	public delegate void AdvertCallback(BleAdvert ad);
 	public delegate void StoppedCallback();
+	public delegate void DisconnectedCallback();
 
-	public delegate void ConnectedCallback(string id);
 	public delegate void ServicesFoundCallback(BleServiceArray services);
 	public delegate void CharacteristicsFoundCallback(BleCharacteristicArray characteristics);
 
@@ -32,107 +29,37 @@ public class BleWinrt
 	public delegate void WriteBytesCallback();
 
 	//static events for device scanning
-	public DeviceInfoCallback DeviceAdded;
-	public DeviceUpdateCallback DeviceUpdated;
-	public DeviceUpdateCallback DeviceRemoved;
-
-	public CompletedCallback ScanCompleted;
+	public AdvertCallback Advertisement;
 	public StoppedCallback ScanStopped;
 
 
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-	public struct DeviceInfo
+	public struct BleAdvert
 	{
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = ID_SIZE)]
-		public string id;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = ID_SIZE)]
-		public string name;
-
-		[MarshalAs(UnmanagedType.I8)]
 		public ulong mac;
 
-		[MarshalAs(UnmanagedType.I4)]
+		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+		public string name;
+
 		public int signalStrength;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool signalStrengthPresent;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool isConnected;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool isConnectedPresent;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool isConnectable;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool isConnectablePresented;
 
 		public override string ToString()
 		{
-            string str = id;
+            string str = MacHex(mac);
 
             if (!string.IsNullOrEmpty(name))
                 str += " / " + name;
 
-            if (signalStrengthPresent)
-                str += $" // {signalStrength}";
+            str += $" // {signalStrength}";
 
             return str;
 	    }
 	}
 
-	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    public struct DeviceInfoUpdate
-    {
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = ID_SIZE)]
-		public string id;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = ID_SIZE)]
-		public string name;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool namePresent;
-
-		[MarshalAs(UnmanagedType.I4)]
-		public int signalStrength;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool signalStrengthPresent;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool isConnected;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool isConnectedUpdated;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool isConnectable;
-
-		[MarshalAs(UnmanagedType.I1)]
-		public bool isConnectableUpdated;
-
-		public override string ToString()
-		{
-			string str = id;
-
-			if (namePresent && !string.IsNullOrEmpty(name))
-				str += " / " + name;
-
-			if (signalStrengthPresent)
-				str += $" // {signalStrength}";
-
-			return str;
-		}
-	}
-
-	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+	[StructLayout(LayoutKind.Sequential)]
 	public struct BleService
 	{
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = UUID_SIZE)]
-		public string serviceUuid;
+		public Guid serviceUuid;
 	};
 
 	[StructLayout(LayoutKind.Sequential)]
@@ -145,10 +72,9 @@ public class BleWinrt
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 	public struct BleCharacteristic
 	{
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = UUID_SIZE)]
-		public string serviceUuid;
+		public Guid serviceUuid;
 
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = ID_SIZE)]
+		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
 		public string userDescription;
 	};
 
@@ -162,20 +88,12 @@ public class BleWinrt
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 	public struct BleData
 	{
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = ID_SIZE)]
-		public string id;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = UUID_SIZE)]
-		public string serviceUuid;
-
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = UUID_SIZE)]
-		public string characteristicUuid;
-
+		public Guid serviceUuid;
+		public Guid characteristicUuid;
 
 		[MarshalAs(UnmanagedType.ByValArray, SizeConst = 512)]
 		public byte[] buf;
 
-		[MarshalAs(UnmanagedType.I2)]
 		public short size;
 	};
 
@@ -190,7 +108,7 @@ public class BleWinrt
 		//flag as scanning
 		is_scanning = true;
 
-		StartDeviceScan(DeviceAdded, DeviceUpdated, DeviceRemoved, InternalScanCompleted, InternalScanStopped);
+		StartDeviceScan(Advertisement, InternalScanStopped);
 	}
 
 	public void StopScan()
@@ -201,37 +119,55 @@ public class BleWinrt
 		StopDeviceScan();
 	}
 
-	public Task<BleServiceArray> GetServices(string id)
+	public Task<List<BleService>> GetServices(ulong addr)
 	{
-		var tcs = new TaskCompletionSource<BleServiceArray>();
+		var tcs = new TaskCompletionSource<List<BleService>>();
 
-		ScanServices(id, (list) => tcs.SetResult(list));
+		ScanServices(addr, (arr) =>
+		{
+			List<BleService> services = new List<BleService>();
+
+			for (int i = 0; i < arr.count; i++)
+			{
+				//read the record
+				IntPtr servicePtr = IntPtr.Add(arr.services, i * Marshal.SizeOf(typeof(BleService)));
+				BleService service = Marshal.PtrToStructure<BleService>(servicePtr);
+
+				services.Add(service);
+			}
+
+			tcs.SetResult(services);
+		});
 
 		return tcs.Task;
 	}
 
-	public Task<BleCharacteristicArray> GetCharacteristics(string id, string serviceUuid)
+	public Task<List<BleCharacteristic>> GetCharacteristics(ulong addr, Guid serviceUuid)
 	{
-		var tcs = new TaskCompletionSource<BleCharacteristicArray>();
+		var tcs = new TaskCompletionSource<List<BleCharacteristic>>();
 
-		ScanCharacteristics(id, serviceUuid, (list) => tcs.SetResult(list));
+		ScanCharacteristics(addr, serviceUuid, (arr) =>
+		{
+			List<BleCharacteristic> characteristics = new List<BleCharacteristic>();
+
+			for (int i = 0; i < arr.count; i++)
+			{
+				//read the record
+				IntPtr servicePtr = IntPtr.Add(arr.characteristics, i * Marshal.SizeOf(typeof(BleCharacteristic)));
+				BleCharacteristic @char = Marshal.PtrToStructure<BleCharacteristic>(servicePtr);
+
+				characteristics.Add(@char);
+			}
+
+			tcs.SetResult(characteristics);
+		});
 
 		return tcs.Task;
 	}
 
-	public void Disconnect(string id, ConnectedCallback disconnectedCb)
+	public void Disconnect(ulong addr, DisconnectedCallback disconnectedCb)
 	{
-		DisconnectDevice(id, disconnectedCb);
-	}
-
-
-	void InternalScanCompleted()
-	{
-		//reset flag
-		is_scanning = false;
-
-		//relay the completion
-		ScanCompleted?.Invoke();
+		DisconnectDevice(addr, disconnectedCb);
 	}
 
 	void InternalScanStopped()
@@ -242,38 +178,51 @@ public class BleWinrt
 		//relay the completion
 		ScanStopped?.Invoke();
 	}
-
+	
 
 	[DllImport("BleWinrtDll.dll", EntryPoint = "StartDeviceScan", CharSet = CharSet.Unicode)]
-    public static extern void StartDeviceScan(DeviceInfoCallback addedCallback, DeviceUpdateCallback updatedCallback, DeviceUpdateCallback removedCallback, CompletedCallback completedCallback, StoppedCallback stoppedCallback);
+    public static extern void StartDeviceScan(AdvertCallback addedCallback, StoppedCallback stoppedCallback);
 
     [DllImport("BleWinrtDll.dll", EntryPoint = "StopDeviceScan")]
     public static extern void StopDeviceScan();
 
 
 	[DllImport("BleWinrtDll.dll", EntryPoint = "DisconnectDevice", CharSet = CharSet.Unicode)]
-	public static extern void DisconnectDevice(string id, ConnectedCallback disconnectedCb);
+	public static extern void DisconnectDevice(ulong addr, DisconnectedCallback disconnectedCb);
 
 
 	[DllImport("BleWinrtDll.dll", EntryPoint = "ScanServices", CharSet = CharSet.Unicode)]
-	public static extern void ScanServices(string id, ServicesFoundCallback serviceFoundCb);
+	public static extern void ScanServices(ulong addr, ServicesFoundCallback serviceFoundCb);
 
 	[DllImport("BleWinrtDll.dll", EntryPoint = "ScanCharacteristics", CharSet = CharSet.Unicode)]
-    public static extern void ScanCharacteristics(string id, string serviceUuid, CharacteristicsFoundCallback characteristicFoundCb);
+    public static extern void ScanCharacteristics(ulong addr, Guid serviceUuid, CharacteristicsFoundCallback characteristicFoundCb);
+
 
     [DllImport("BleWinrtDll.dll", EntryPoint = "SubscribeCharacteristic", CharSet = CharSet.Unicode)]
-    public static extern void SubscribeCharacteristic(string id, string serviceUuid, string characteristicUuid, SubscribeCallback subscribeCallback);
+    public static extern void SubscribeCharacteristic(ulong addr, Guid serviceUuid, Guid characteristicUuid, SubscribeCallback subscribeCallback);
 
 
 	[DllImport("BleWinrtDll.dll", EntryPoint = "ReadData", CharSet = CharSet.Unicode)]
-	public static extern void ReadBytes(string id, string serviceUuid, string characteristicUuid, ReadBytesCallback readBufferCb);
+	public static extern void ReadBytes(ulong addr, Guid serviceUuid, Guid characteristicUuid, ReadBytesCallback readBufferCb);
 
 	[DllImport("BleWinrtDll.dll", EntryPoint = "WriteData", CharSet = CharSet.Unicode)]
-    public static extern void WriteBytes(string id, string serviceUuid, string characteristicUuid, byte[] buf, int size, WriteBytesCallback writeBytesCb);
+    public static extern void WriteBytes(ulong addr, Guid serviceUuid, Guid characteristicUuid, byte[] buf, int size, WriteBytesCallback writeBytesCb);
 
 	/// <summary>
 	/// close everything and clean up
 	/// </summary>
     [DllImport("BleWinrtDll.dll", EntryPoint = "Quit")]
     public static extern void Quit();
+
+	public static string MacHex(ulong mac)
+	{
+		// Extract each byte and format as hex with two digits and colons in between
+		return string.Format("{0:X2}:{1:X2}:{2:X2}:{3:X2}:{4:X2}:{5:X2}",
+			(mac >> 40) & 0xFF,
+			(mac >> 32) & 0xFF,
+			(mac >> 24) & 0xFF,
+			(mac >> 16) & 0xFF,
+			(mac >> 8) & 0xFF,
+			mac & 0xFF);
+	}
 }

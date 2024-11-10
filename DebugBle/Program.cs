@@ -1,89 +1,61 @@
 ﻿using System;
 using System.Collections.Generic;
+using static BleWinrt;
 
 
 namespace DebugBle
 {
     class Program
     {
-        static BleWinrt ble = new BleWinrt();
+        static readonly BleWinrt ble = new BleWinrt();
+        static readonly HashSet<ulong> set = new HashSet<ulong>();
 
 		static void Main(string[] args)
         {
 			Console.WriteLine($"scan started");
 
-            ble.DeviceAdded += OnAdded;
-            ble.DeviceUpdated += OnUpdated;
-            ble.DeviceRemoved += OnRemoved;
+            ble.Advertisement += OnAdvertisement;
+			ble.ScanStopped += OnStopped;
             ble.StartScan();
 
-			//string deviceId = null;
-
-			//BLE.BLEScan scan = BLE.ScanDevices();
-			/*
-            scan.Found = (mac, deviceName) =>
-            {
-                Console.WriteLine($"found device {mac}: {deviceName}");
-            };
-            scan.Finished = () =>
-            {
-                Console.WriteLine("scan finished");
-                if (deviceId == null)
-                    deviceId = "-1";
-            };
-            while (deviceId == null)
-                Thread.Sleep(500);
-
-            scan.Cancel();
-            if (deviceId == "-1")
-            {
-                Console.WriteLine("no device found!");
-                return;
-            }
-
-            ble.Connect(deviceId,
-                "{f6f04ffa-9a61-11e9-a2a3-2a2ae2dbcce4}", 
-                new string[] { "{f6f07c3c-9a61-11e9-a2a3-2a2ae2dbcce4}",
-                    "{f6f07da4-9a61-11e9-a2a3-2a2ae2dbcce4}",
-                    "{f6f07ed0-9a61-11e9-a2a3-2a2ae2dbcce4}" });
-
-            for(int guard = 0; guard < 2000; guard++)
-            {
-                BLE.ReadPackage();
-                BLE.WritePackage(deviceId,
-                    "{f6f04ffa-9a61-11e9-a2a3-2a2ae2dbcce4}",
-                    "{f6f07ffc-9a61-11e9-a2a3-2a2ae2dbcce4}",
-                    new byte[] { 0, 1, 2 });
-                Console.WriteLine(BLE.GetError());
-                Thread.Sleep(5);
-            }
-*/
 			Console.WriteLine("Press enter to exit the program...");
             Console.ReadLine();
         }
 
-        static async void OnAdded(BleWinrt.DeviceInfo deviceInfo)
+        static async void OnAdvertisement(BleWinrt.BleAdvert ad)
         {
-            Console.WriteLine($"+ {deviceInfo}");
+            Console.WriteLine(ad);
 
-            string id = deviceInfo.id;
+            //check if added it
+            if (set.Add(ad.mac))
+            {
+                List<BleService> services = await ble.GetServices(ad.mac);
 
-            BleWinrt.BleServiceArray carrier = await ble.GetServices(id);
+				string str = ad + " >>> " + services.Count + " service(s)";
 
-            Console.WriteLine(id + " // " + carrier.count);
+				if (services.Count > 0)
+					str += "\n";
 
-//                foreach (var service in carrier.services)
-//                    Console.WriteLine($"\t{service.serviceUuid}");
-		}
+				for (int i = 0; i < services.Count; i++)
+                {
+                    Guid serviceUuid = services[i].serviceUuid;
 
-		static void OnRemoved(BleWinrt.DeviceInfoUpdate deviceInfoUpdate)
-		{
-			Console.WriteLine($"- {deviceInfoUpdate}");
-		}
+					str += $"- {serviceUuid}\n";
 
-		static void OnUpdated(BleWinrt.DeviceInfoUpdate deviceInfoUpdate)
-		{
-			Console.WriteLine($". {deviceInfoUpdate}");
+					List<BleCharacteristic> characteristics = await ble.GetCharacteristics(ad.mac, serviceUuid);
+
+					for (int j = 0; j < characteristics.Count; j++)
+					{
+						Guid charUuid = characteristics[j].serviceUuid;
+
+						str += $"  {charUuid}\n";
+                    }
+
+					str += "\n";
+				}
+
+				Console.WriteLine(str);
+			}
 		}
 
 		static void OnCompleted()

@@ -5,24 +5,22 @@
 #include "logging.h"
 #include "cache.h"
 
+#include <winrt/Windows.Devices.Bluetooth.Advertisement.h>
+
 #define __WFILE__ L"ble-winrt.cpp"
 
+using namespace winrt;
+using namespace Windows::Devices::Bluetooth;
+using namespace Windows::Devices::Bluetooth::Advertisement;
+using namespace Windows::Foundation;
 using namespace Windows::Foundation::Collections;
 
 
-DeviceInfoCallback* addedCallback = nullptr;
-DeviceUpdateCallback* updatedCallback = nullptr;
-DeviceUpdateCallback* removedCallback = nullptr;
-
-CompletedCallback* completedCallback = nullptr;
+ReceivedCallback* receivedCallback = nullptr;
 StoppedCallback* stoppedCallback = nullptr;
 
-DeviceWatcher deviceWatcher{ nullptr };
-DeviceWatcher::Added_revoker deviceWatcherAddedRevoker;
-DeviceWatcher::Removed_revoker deviceWatcherRemovedRevoker;
-DeviceWatcher::Updated_revoker deviceWatcherUpdatedRevoker;
-DeviceWatcher::EnumerationCompleted_revoker deviceWatcherEnumerationCompletedRevoker;
-DeviceWatcher::Stopped_revoker deviceWatcherStoppedRevoker;
+//TODO: move to this instead
+BluetoothLEAdvertisementWatcher advertisementWatcher{ nullptr };
 
 // global flag to release calling thread
 mutex quitLock;
@@ -31,114 +29,186 @@ bool quitFlag = false;
 list<Subscription*> subscriptions;
 
 
-void DisconnectDevice(wchar_t* id, ConnectedCallback connectedCb)
+void StartDeviceScan(ReceivedCallback addedCb, StoppedCallback stoppedCb)
+{
+	{
+		std::lock_guard lock(quitLock);
+		quitFlag = false;
+	}
+
+	receivedCallback = addedCb;
+	stoppedCallback = stoppedCb;
+
+	// Create BluetoothLEAdvertisementWatcher and set scanning mode
+	advertisementWatcher = BluetoothLEAdvertisementWatcher();
+	advertisementWatcher.ScanningMode(BluetoothLEScanningMode::Active);
+
+	// Handle received advertisements
+	advertisementWatcher.Received([](BluetoothLEAdvertisementWatcher const&, BluetoothLEAdvertisementReceivedEventArgs const& args)
+		{
+			BleAdvert di;
+
+			di.mac = args.BluetoothAddress();
+			di.signalStrength = args.RawSignalStrengthInDBm();
+
+			// Check if TransmitPowerLevelInDBm has a value and assign it if available
+			if (args.TransmitPowerLevelInDBm())
+				di.powerLevel = args.TransmitPowerLevelInDBm().Value();
+			else
+				di.powerLevel = 0; // or set to a default if no power level is provided
+
+			// Retrieve the device name from the advertisement
+			auto advertisement = args.Advertisement();
+			if (!advertisement.LocalName().empty())
+				wcscpy_s(di.name, ID_SIZE, advertisement.LocalName().c_str());
+			else
+				wcscpy_s(di.name, ID_SIZE, L"");
+
+			if (receivedCallback)
+				(*receivedCallback)(&di);
+		});
+
+	// Handle watcher stopped
+	advertisementWatcher.Stopped([](BluetoothLEAdvertisementWatcher const&, BluetoothLEAdvertisementWatcherStoppedEventArgs const& args)
+	{
+		if (stoppedCallback)
+			(*stoppedCallback)();
+	});
+
+	advertisementWatcher.Start();
+}
+
+void StopDeviceScan()
+{
+	if (advertisementWatcher == nullptr)
+		return;
+
+	advertisementWatcher.Stop();
+	advertisementWatcher = nullptr;
+}
+
+void DisconnectDevice(uint64_t deviceAddress, DisconnectedCallback connectedCb)
 {
 	try
 	{
-		RemoveFromCache(id);
+		RemoveFromCache(deviceAddress);
 
 		if (connectedCb)
-			(*connectedCb)(id);
+			(*connectedCb)(deviceAddress);
 	}
 	catch (const std::exception& e)
 	{
 		Log(e.what());
 
 		if (connectedCb)
-			(*connectedCb)(nullptr);
+			(*connectedCb)(0);
 	}
 }
 
-void ScanServices(wchar_t* id, ServicesFoundCallback serviceFoundCb)
+void ScanServices(uint64_t deviceAddress, ServicesFoundCallback serviceFoundCb)
 {
-	ScanServicesAsync(id, serviceFoundCb);
+	ScanServicesAsync(deviceAddress, serviceFoundCb);
 }
 
-void ScanCharacteristics(wchar_t* id, wchar_t* serviceUuid, CharacteristicsFoundCallback characteristicFoundCb)
+void ScanCharacteristics(uint64_t deviceAddress, guid serviceUuid, CharacteristicsFoundCallback characteristicFoundCb)
 {
-	ScanCharacteristicsAsync(id, serviceUuid, characteristicFoundCb);
+	ScanCharacteristicsAsync(deviceAddress, serviceUuid, characteristicFoundCb);
 }
 
-void SubscribeCharacteristic(wchar_t* id, wchar_t* serviceUuid, wchar_t* characteristicUuid, SubscribeCallback subscribeCallback)
+void SubscribeCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, SubscribeCallback subscribeCallback)
 {
-	SubscribeCharacteristicAsync(id, serviceUuid, characteristicUuid, subscribeCallback);
+	SubscribeCharacteristicAsync(deviceAddress, serviceUuid, characteristicUuid, subscribeCallback);
 }
 
-void ReadBytes(wchar_t* id, wchar_t* serviceUuid, wchar_t* characteristicUuid, ReadBytesCallback readBufferCb)
+void ReadBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, ReadBytesCallback readBufferCb)
 {
+	//TODO
 }
 
-void WriteBytes(wchar_t* id, wchar_t* serviceUuid, wchar_t* characteristicUuid, WriteBytesCallback writeBytesCb)
+void WriteBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, WriteBytesCallback writeBytesCb)
 {
+	//TODO
 }
 
 
-IAsyncOperation<BluetoothLEDevice> ConnectAsync(wchar_t* deviceId)
+IAsyncOperation<BluetoothLEDevice> ConnectAsync(uint64_t deviceAddress)
 {
-	BluetoothLEDevice device = co_await RetrieveDevice(deviceId);
+	BluetoothLEDevice device = co_await RetrieveDevice(deviceAddress);
 
 	co_return device;
 }
 
-fire_and_forget ScanServicesAsync(wchar_t* id, ServicesFoundCallback servicesCb)
+fire_and_forget ScanServicesAsync(uint64_t deviceAddress, ServicesFoundCallback servicesCb)
 {
 	BleServiceArray service_list;
 
-    try
-    {
-        // Connect to device if not already connected
-        auto device = co_await RetrieveDevice(id);
+	try
+	{
+		// Connect to device if not already connected
+		auto device = co_await RetrieveDevice(deviceAddress);
 		if (device == nullptr)
 		{
+			//wprintf(L"Failed to retrieve device at address: %llu\n", deviceAddress);
 			if (servicesCb)
 				(*servicesCb)(&service_list);
 			co_return;
 		}
 
+		// Try using BluetoothCacheMode::Cached to see if it improves results
 		GattDeviceServicesResult result = co_await device.GetGattServicesAsync(BluetoothCacheMode::Uncached);
+
+		if (result.Status() == GattCommunicationStatus::Unreachable)
+			result = co_await device.GetGattServicesAsync(BluetoothCacheMode::Cached);
+
 		if (result.Status() == GattCommunicationStatus::Success)
 		{
-			IVectorView<GattDeviceService> services = result.Services();
-
+			auto services = result.Services();
 			service_list.count = services.Size();
-			service_list.services = new BleService[service_list.count];
 
-			int i = 0;
-
-			for (auto&& service : services)
+			if (service_list.count == 0)
 			{
-				BleService service_carrier;
+				wprintf(L"No services found for device at address: %llu\n", deviceAddress);
+			}
+			else
+			{
+				service_list.services = new BleService[service_list.count];
+				int i = 0;
 
-				//wprintf(L"%s", service_carrier.serviceUuid);
-
-				wcscpy_s(service_carrier.serviceUuid, sizeof(service_carrier.serviceUuid) / sizeof(wchar_t), to_hstring(service.Uuid()).c_str());
-
+				for (auto&& service : services)
 				{
-					lock_guard lock(quitLock);
-					if (quitFlag)
-						break;
-				}
+					BleService service_carrier;
 
-				service_list.services[i++] = service_carrier;
+					service_carrier.serviceUuid = service.Uuid();
+
+					service_list.services[i++] = service_carrier;
+
+					{
+						std::lock_guard lock(quitLock);
+						if (quitFlag)
+							break;
+					}
+				}
 			}
 		}
-    }
-    catch (hresult_error& ex)
-    {
-        wprintf(L"%s:%d ScanServicesAsync catch: %s\n", __WFILE__, __LINE__, ex.message().c_str());
-    }
+	}
+	catch (hresult_error& ex)
+	{
+		wprintf(L"%s:%d ScanServicesAsync catch: %s\n", __WFILE__, __LINE__, ex.message().c_str());
+	}
 
+	// Call the callback with the service list, even if it's empty
 	if (servicesCb)
 		(*servicesCb)(&service_list);
 }
 
-fire_and_forget ScanCharacteristicsAsync(wchar_t* id, wchar_t* serviceUuid, CharacteristicsFoundCallback characteristicsCb)
+
+fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUuid, CharacteristicsFoundCallback characteristicsCb)
 {
 	BleCharacteristicArray char_list;
 
 	try
 	{
-		auto service = co_await RetrieveService(id, serviceUuid);
+		auto service = co_await RetrieveService(deviceAddress, serviceUuid);
 		if (service == nullptr)
 		{
 			if (characteristicsCb)
@@ -168,7 +238,7 @@ fire_and_forget ScanCharacteristicsAsync(wchar_t* id, wchar_t* serviceUuid, Char
 		{
 			BleCharacteristic char_carrier;
 
-			wcscpy_s(char_carrier.characteristicUuid, sizeof(char_carrier.characteristicUuid) / sizeof(wchar_t), to_hstring(c.Uuid()).c_str());
+			char_carrier.characteristicUuid = c.Uuid();
 
 			// retrieve user description
 			GattDescriptorsResult descriptorScan = co_await c.GetDescriptorsForUuidAsync(make_guid(L"00002901-0000-1000-8000-00805F9B34FB"), BluetoothCacheMode::Uncached);
@@ -214,17 +284,17 @@ fire_and_forget ScanCharacteristicsAsync(wchar_t* id, wchar_t* serviceUuid, Char
 		(*characteristicsCb)(&char_list);
 }
 
-fire_and_forget SubscribeCharacteristicAsync(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId, SubscribeCallback subscribeCallback)
+fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, SubscribeCallback subscribeCallback)
 {
 	try
 	{
-		auto characteristic = co_await RetrieveCharacteristic(deviceId, serviceId, characteristicId);
+		auto characteristic = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
 		if (characteristic != nullptr)
 		{
 			auto status = co_await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue::Notify);
 			if (status != GattCommunicationStatus::Success)
 			{
-				LogError(L"%s:%d Error subscribing to characteristic with uuid %s and status %d", __WFILE__, __LINE__, characteristicId, status);
+				LogError(L"%s:%d Error subscribing to characteristic with uuid %s and status %d", __WFILE__, __LINE__, characteristicUuid, status);
 			}
 			else
 			{
@@ -244,6 +314,7 @@ fire_and_forget SubscribeCharacteristicAsync(wchar_t* deviceId, wchar_t* service
 	}
 }
 
+/*
 fire_and_forget SendDataAsync(BleData data, condition_variable* signal, bool* result)
 {
 	try
@@ -271,163 +342,15 @@ fire_and_forget SendDataAsync(BleData data, condition_variable* signal, bool* re
 	if (signal != 0)
 		signal->notify_one();
 }
-
-
-void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation deviceInfo)
-{
-	DeviceInfo di;
-
-	wcscpy_s(di.id, sizeof(di.id) / sizeof(wchar_t), deviceInfo.Id().c_str());
-	wcscpy_s(di.name, sizeof(di.name) / sizeof(wchar_t), deviceInfo.Name().c_str());
-	
-	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.DeviceAddress"))
-	{
-		hstring mac_string = unbox_value<hstring>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.DeviceAddress")).c_str();
-		di.mac = ConvertMacAddressToULong(mac_string);
-	}
-	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"))
-	{
-		di.isConnectable = unbox_value<bool>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"));
-		di.isConnectablePresent = true;
-	}
-	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnected"))
-	{
-		di.isConnected = unbox_value<bool>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnected"));
-		di.isConnectedPresent = true;
-	}
-	if (deviceInfo.Properties().HasKey(L"System.Devices.Aep.SignalStrength"))
-	{
-		di.signalStrength = unbox_value<int32_t>(deviceInfo.Properties().Lookup(L"System.Devices.Aep.SignalStrength"));
-		di.signalStrengthPresent = true;
-	}
-
-	//fire callback if present
-	if (addedCallback)
-		(*addedCallback)(&di);
-}
-
-void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate)
-{
-	DeviceInfoUpdate diu;
-
-	wcscpy_s(diu.id, sizeof(diu.id) / sizeof(wchar_t), deviceInfoUpdate.Id().c_str());
-
-	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"))
-	{
-		diu.isConnectable = unbox_value<bool>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"));
-		diu.isConnectablePresent = true;
-	}
-	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnected"))
-	{
-		diu.isConnected = unbox_value<bool>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.Bluetooth.Le.IsConnected"));
-		diu.isConnectedPresent = true;
-	}
-	if (deviceInfoUpdate.Properties().HasKey(L"System.Devices.Aep.SignalStrength"))
-	{
-		diu.signalStrength = unbox_value<int32_t>(deviceInfoUpdate.Properties().Lookup(L"System.Devices.Aep.SignalStrength"));
-		diu.signalStrengthPresent = true;
-	}
-
-	//fire callback if present
-	if (updatedCallback)
-		(*updatedCallback)(&diu);
-}
-
-void DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate deviceInfoUpdate)
-{
-	DeviceInfoUpdate diu;
-
-	wcscpy_s(diu.id, sizeof(diu.id) / sizeof(wchar_t), deviceInfoUpdate.Id().c_str());
-
-	//fire callback if present
-	if (removedCallback)
-		(*removedCallback)(&diu);
-}
-
-void DeviceWatcher_EnumerationCompleted(DeviceWatcher sender, IInspectable const&)
-{
-	StopDeviceScan();
-
-	if (completedCallback)
-		(*completedCallback)();
-}
-
-void DeviceWatcher_Stopped(DeviceWatcher sender, IInspectable const&)
-{
-	if (stoppedCallback)
-		(*stoppedCallback)();
-}
-
-IVector<hstring> requestedProperties = single_threaded_vector<hstring>(
-{
-	L"System.Devices.Aep.DeviceAddress",
-	L"System.Devices.Aep.Bluetooth.Le.IsConnectable",
-	L"System.Devices.Aep.IsConnected",
-	L"System.Devices.Aep.SignalStrength"
-});
-
-void StartDeviceScan(DeviceInfoCallback addedCb, DeviceUpdateCallback updatedCb, DeviceUpdateCallback removedCb, CompletedCallback completedCb, StoppedCallback stoppedCb)
-{
-	// as this is the first function that must be called, if Quit() was called before, assume here that the client wants to restart
-	{
-		lock_guard lock(quitLock);
-		quitFlag = false;
-	}
-
-	addedCallback = addedCb;
-	updatedCallback = updatedCb;
-	removedCallback = removedCb;
-	completedCallback = completedCb;
-	stoppedCallback = stoppedCb;
-
-	//list Bluetooth LE devices
-	hstring aqsAllBluetoothLEDevices = L"(System.Devices.Aep.ProtocolId:=\"{bb7bb05e-5972-42b5-94fc-76eaa7084d49}\")";
-
-	//create the device watcher
-	deviceWatcher = DeviceInformation::CreateWatcher(
-		aqsAllBluetoothLEDevices,
-		requestedProperties,
-		DeviceInformationKind::AssociationEndpoint);
-
-	//add lsiteners
-	// see https://docs.microsoft.com/en-us/windows/uwp/cpp-and-winrt-apis/handle-events#revoke-a-registered-delegate
-	deviceWatcherAddedRevoker = deviceWatcher.Added(auto_revoke, &DeviceWatcher_Added);
-	deviceWatcherUpdatedRevoker = deviceWatcher.Updated(auto_revoke, &DeviceWatcher_Updated);
-	deviceWatcherRemovedRevoker = deviceWatcher.Removed(auto_revoke, &DeviceWatcher_Removed);
-
-	deviceWatcherEnumerationCompletedRevoker = deviceWatcher.EnumerationCompleted(auto_revoke, &DeviceWatcher_EnumerationCompleted);
-	deviceWatcherStoppedRevoker = deviceWatcher.Stopped(auto_revoke, &DeviceWatcher_Stopped);
-
-	// ~30 seconds scan ; for permanent scanning use BluetoothLEAdvertisementWatcher, see the BluetoothAdvertisement.zip sample
-	deviceWatcher.Start();
-}
-
-void StopDeviceScan()
-{
-	if (deviceWatcher == nullptr)
-		return;
-
-	deviceWatcherAddedRevoker.revoke();
-	deviceWatcherUpdatedRevoker.revoke();
-	deviceWatcherRemovedRevoker.revoke();
-
-	deviceWatcherEnumerationCompletedRevoker.revoke();
-	deviceWatcherStoppedRevoker.revoke();
-
-	deviceWatcher.Stop();
-
-	//reset
-	deviceWatcher = nullptr;
-}
+*/
 
 
 void Characteristic_ValueChanged(GattCharacteristic const& characteristic, GattValueChangedEventArgs args)
 {
 	BleData data;
 
-	wcscpy_s(data.characteristicUuid, sizeof(data.characteristicUuid) / sizeof(wchar_t), to_hstring(characteristic.Uuid()).c_str());
-	wcscpy_s(data.serviceUuid, sizeof(data.serviceUuid) / sizeof(wchar_t), to_hstring(characteristic.Service().Uuid()).c_str());
-	wcscpy_s(data.id, sizeof(data.id) / sizeof(wchar_t), characteristic.Service().Device().DeviceId().c_str());
+	//wcscpy_s(data.characteristicUuid, sizeof(data.characteristicUuid) / sizeof(wchar_t), to_hstring(characteristic.Uuid()).c_str());
+	//wcscpy_s(data.serviceUuid, sizeof(data.serviceUuid) / sizeof(wchar_t), to_hstring(characteristic.Service().Uuid()).c_str());
 
 	data.size = args.CharacteristicValue().Length();
 

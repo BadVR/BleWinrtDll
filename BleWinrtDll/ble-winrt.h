@@ -17,13 +17,9 @@ struct BleCharacteristicArray
 	int count = 0;
 };
 
-using DeviceInfoCallback = void(DeviceInfo*);
-using DeviceUpdateCallback = void(DeviceInfoUpdate*);
-using CompletedCallback = void();
+using ReceivedCallback = void(BleAdvert*);
 using StoppedCallback = void();
-
-using ConnectedCallback = void(wchar_t*);
-using DisconnectedCallback = void(wchar_t*);
+using DisconnectedCallback = void(uint64_t);
 using ServicesFoundCallback = void(BleServiceArray *);
 using CharacteristicsFoundCallback = void(BleCharacteristicArray *);
 
@@ -31,29 +27,26 @@ using SubscribeCallback = void();
 using ReadBytesCallback = void();
 using WriteBytesCallback = void();
 
-
-IAsyncOperation<BluetoothLEDevice> ConnectAsync(wchar_t* id);
-fire_and_forget ScanServicesAsync(wchar_t* id, ServicesFoundCallback servicesCb);
-fire_and_forget ScanCharacteristicsAsync(wchar_t* id, wchar_t* serviceUuid, CharacteristicsFoundCallback characteristicsCb);
-fire_and_forget SubscribeCharacteristicAsync(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId, SubscribeCallback subscribeCallback);
+fire_and_forget ScanServicesAsync(uint64_t deviceAddress, ServicesFoundCallback servicesCb);
+fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUuid, CharacteristicsFoundCallback characteristicsCb);
+fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, SubscribeCallback subscribeCallback);
 
 
 //these functions will be available through the native DLL interface, exposed to Unity
 extern "C"
 {
-	__declspec(dllexport) void StartDeviceScan(DeviceInfoCallback addedCb, DeviceUpdateCallback updatedCb, DeviceUpdateCallback removedCb, CompletedCallback completedCb, StoppedCallback stoppedCb);
+	__declspec(dllexport) void StartDeviceScan(ReceivedCallback addedCb, StoppedCallback stoppedCb);
 	__declspec(dllexport) void StopDeviceScan();
 
-	__declspec(dllexport) void ConnectDevice(wchar_t* id, ConnectedCallback connectedCb);
-	__declspec(dllexport) void DisconnectDevice(wchar_t* id, ConnectedCallback connectedCb);
+	__declspec(dllexport) void DisconnectDevice(uint64_t deviceAddress, DisconnectedCallback connectedCb);
 
-	__declspec(dllexport) void ScanServices(wchar_t* id, ServicesFoundCallback serviceFoundCb);
-	__declspec(dllexport) void ScanCharacteristics(wchar_t* id, wchar_t* serviceUuid, CharacteristicsFoundCallback characteristicFoundCb);
+	__declspec(dllexport) void ScanServices(uint64_t deviceAddress, ServicesFoundCallback serviceFoundCb);
+	__declspec(dllexport) void ScanCharacteristics(uint64_t deviceAddress, guid serviceUuid, CharacteristicsFoundCallback characteristicFoundCb);
 
-	__declspec(dllexport) void SubscribeCharacteristic(wchar_t* id, wchar_t* serviceUuid, wchar_t* characteristicUuid, SubscribeCallback subscribeCallback);
+	__declspec(dllexport) void SubscribeCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, SubscribeCallback subscribeCallback);
 
-	__declspec(dllexport) void ReadBytes(wchar_t* id, wchar_t* serviceUuid, wchar_t* characteristicUuid, ReadBytesCallback readBufferCb);
-	__declspec(dllexport) void WriteBytes(wchar_t* id, wchar_t* serviceUuid, wchar_t* characteristicUuid, WriteBytesCallback writeBytesCb);
+	__declspec(dllexport) void ReadBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, ReadBytesCallback readBufferCb);
+	__declspec(dllexport) void WriteBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, WriteBytesCallback writeBytesCb);
 
 	__declspec(dllexport) void Quit();
 }

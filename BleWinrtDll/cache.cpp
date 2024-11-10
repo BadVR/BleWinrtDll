@@ -5,64 +5,57 @@
 #include "logging.h"
 #include "ble-winrt.h"
 
+#include <winrt/Windows.Devices.Bluetooth.h>
+#include <winrt/Windows.Devices.Bluetooth.Advertisement.h>
+
 #define __WFILE__ L"cache.cpp"
 
 
 // implement own caching instead of using the system-provicded cache as there is an AccessDenied error when trying to
 // call GetCharacteristicsAsync on a service for which a reference is hold in global scope
 // cf. https://stackoverflow.com/a/36106137
-map<long, DeviceCacheEntry> cache;
+map<uint64_t, DeviceCacheEntry> cache;
 
 
-// using hashes of uuids to omit storing the c-strings in reliable storage
-static long hsh(wchar_t* wstr)
+IAsyncOperation<BluetoothLEDevice> RetrieveDevice(uint64_t deviceAddress)
 {
-	long seed = 5381;
-	int c;
-
-	while (c = *wstr++)
-		seed = ((seed << 5) + seed) + c;
-
-	return seed;
-}
-
-IAsyncOperation<BluetoothLEDevice> RetrieveDevice(wchar_t* deviceId)
-{
-	auto deviceHash = hsh(deviceId);
-
-	auto item = cache.find(deviceHash);
+	auto item = cache.find(deviceAddress);
 	if (item != cache.end())
 		co_return item->second.device;
 
-	BluetoothLEDevice device = co_await BluetoothLEDevice::FromIdAsync(deviceId);
-	if (device == nullptr)
+	try
 	{
-		cout << "unable to connect\n";
+		BluetoothLEDevice device = co_await BluetoothLEDevice::FromBluetoothAddressAsync(deviceAddress);
+		if (device == nullptr)
+			co_return nullptr;
+
+		//store in cache
+		cache[deviceAddress] = { device };
+
+		// Wait for the connection to stabilize
+		//co_await winrt::resume_after(std::chrono::milliseconds(100));
+
+		co_return device;
+	}
+	catch (hresult_error const& ex)
+	{
 		co_return nullptr;
 	}
-
-	//store in cache
-	cache[deviceHash] = { device };
-
-	co_return device;
 }
 
-IAsyncOperation<GattDeviceService> RetrieveService(wchar_t* id, wchar_t* serviceUuid)
+IAsyncOperation<GattDeviceService> RetrieveService(uint64_t deviceAddress, guid serviceUuid)
 {
-	auto deviceHash = hsh(id);
-	auto serviceHash = hsh(serviceUuid);
-
 	//connect to device if not already connected
-	auto device = co_await RetrieveDevice(id);
+	auto device = co_await RetrieveDevice(deviceAddress);
 	if (device == nullptr)
 		co_return nullptr;
 
 	//pull service if present
-	if (cache[hsh(id)].services.count(hsh(serviceUuid)))
-		co_return cache[hsh(id)].services[hsh(serviceUuid)].service;
+	if (cache[deviceAddress].services.count(serviceUuid))
+		co_return cache[deviceAddress].services[serviceUuid].service;
 
 	//get specific service from device
-	GattDeviceServicesResult result = co_await device.GetGattServicesForUuidAsync(make_guid(serviceUuid), BluetoothCacheMode::Cached);
+	GattDeviceServicesResult result = co_await device.GetGattServicesForUuidAsync(serviceUuid, BluetoothCacheMode::Cached);
 
 	if (result.Status() != GattCommunicationStatus::Success)
 	{
@@ -77,45 +70,43 @@ IAsyncOperation<GattDeviceService> RetrieveService(wchar_t* id, wchar_t* service
 	}
 
 	//add to cache
-	cache[hsh(id)].services[hsh(serviceUuid)] = { result.Services().GetAt(0) };
-	co_return cache[hsh(id)].services[hsh(serviceUuid)].service;
+	cache[deviceAddress].services[serviceUuid] = { result.Services().GetAt(0) };
+	co_return cache[deviceAddress].services[serviceUuid].service;
 }
 
-IAsyncOperation<GattCharacteristic> RetrieveCharacteristic(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId)
+IAsyncOperation<GattCharacteristic> RetrieveCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid)
 {
-	auto service = co_await RetrieveService(deviceId, serviceId);
+	auto service = co_await RetrieveService(deviceAddress, serviceUuid);
 	if (service == nullptr)
 		co_return nullptr;
 
 	//pull characteristic if present
-	if (cache[hsh(deviceId)].services[hsh(serviceId)].characteristics.count(hsh(characteristicId)))
-		co_return cache[hsh(deviceId)].services[hsh(serviceId)].characteristics[hsh(characteristicId)].characteristic;
+	if (cache[deviceAddress].services[serviceUuid].characteristics.count(characteristicUuid))
+		co_return cache[deviceAddress].services[serviceUuid].characteristics[characteristicUuid].characteristic;
 
 	//get specific characteristic from device
-	GattCharacteristicsResult result = co_await service.GetCharacteristicsForUuidAsync(make_guid(characteristicId), BluetoothCacheMode::Cached);
+	GattCharacteristicsResult result = co_await service.GetCharacteristicsForUuidAsync(characteristicUuid, BluetoothCacheMode::Cached);
 
 	if (result.Status() != GattCommunicationStatus::Success)
 	{
-		LogError(L"%s:%d Error scanning characteristics from service %s with status %d", __WFILE__, __LINE__, serviceId, result.Status());
+		LogError(L"%s:%d Error scanning characteristics from service %s with status %d", __WFILE__, __LINE__, serviceUuid, result.Status());
 		co_return nullptr;
 	}
 
 	if (result.Characteristics().Size() == 0)
 	{
-		LogError(L"%s:%d No characteristic found with uuid %s", __WFILE__, __LINE__, characteristicId);
+		LogError(L"%s:%d No characteristic found with uuid %s", __WFILE__, __LINE__, characteristicUuid);
 		co_return nullptr;
 	}
 
 	//add to cache
-	cache[hsh(deviceId)].services[hsh(serviceId)].characteristics[hsh(characteristicId)] = { result.Characteristics().GetAt(0) };
-	co_return cache[hsh(deviceId)].services[hsh(serviceId)].characteristics[hsh(characteristicId)].characteristic;
+	cache[deviceAddress].services[serviceUuid].characteristics[characteristicUuid] = { result.Characteristics().GetAt(0) };
+	co_return cache[deviceAddress].services[serviceUuid].characteristics[characteristicUuid].characteristic;
 }
 
-void RemoveFromCache(wchar_t* deviceId)
+void RemoveFromCache(uint64_t deviceAddress)
 {
-	auto deviceHash = hsh(deviceId);
-
-	const auto devP = cache.find(deviceHash);
+	const auto devP = cache.find(deviceAddress);
 	if (devP == cache.end())
 		return;
 
@@ -127,7 +118,7 @@ void RemoveFromCache(wchar_t* deviceId)
 	for (auto service : dev.services)
 		service.second.service.Close();
 
-	cache.erase(deviceHash);
+	cache.erase(deviceAddress);
 }
 
 void ClearCache()
