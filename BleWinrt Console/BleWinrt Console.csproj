@@ -57,6 +57,7 @@
   <ItemGroup>
     <Content Include="..\BleWinrt DLL\BleWinrt.dll">
       <Link>BleWinrt.dll</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

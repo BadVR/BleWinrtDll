@@ -7,8 +7,8 @@ namespace BleWinrtConsole
 {
     class Program
     {
-        static readonly BleWinrt ble = new BleWinrt();
-        static readonly HashSet<ulong> set = new HashSet<ulong>();
+        static readonly BleWinrt ble = new();
+        static readonly HashSet<ulong> set = new();
 
 		static void Main(string[] args)
         {
