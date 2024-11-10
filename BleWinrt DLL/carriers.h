@@ -26,15 +26,6 @@ struct BleCharacteristic
 	wchar_t userDescription[ID_SIZE];
 };
 
-struct BleData
-{
-	uint8_t buf[512];
-	uint16_t size;
-
-	guid serviceUuid;
-	guid characteristicUuid;
-};
-
 struct Subscription
 {
 	GattCharacteristic characteristic = nullptr;

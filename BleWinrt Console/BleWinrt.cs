@@ -23,9 +23,9 @@ public class BleWinrt
 	public delegate void ServicesFoundCallback(BleServiceArray services);
 	public delegate void CharacteristicsFoundCallback(BleCharacteristicArray characteristics);
 
-	public delegate void SubscribeCallback();
-	public delegate void ReadBytesCallback();
-	public delegate void WriteBytesCallback();
+	public delegate void SubscribeCallback(ulong deviceAddress, Guid serviceUuid, Guid characteristicUuid, byte[] data, ulong size);
+	public delegate void ReadBytesCallback(byte[] data, ulong size);
+	public delegate void WriteBytesCallback(bool success);
 
 
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

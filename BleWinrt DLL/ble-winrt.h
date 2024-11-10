@@ -24,7 +24,7 @@ using DisconnectedCallback = void(uint64_t);
 using ServicesFoundCallback = void(BleServiceArray *);
 using CharacteristicsFoundCallback = void(BleCharacteristicArray *);
 
-using SubscribeCallback = void();
+using SubscribeCallback = void(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, const uint8_t* data, size_t size);
 using ReadBytesCallback = void(const uint8_t* data, size_t size);
 using WriteBytesCallback = void(bool success);
 

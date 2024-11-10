@@ -49,9 +49,9 @@ namespace BleWinrtConsole
 
 						for (int j = 0; j < characteristics.Count; j++)
 						{
-							Guid charUuid = characteristics[j].serviceUuid;
+							Guid characteristicUuid = characteristics[j].serviceUuid;
 
-							str += $"  {charUuid}\n";
+							str += $"  {characteristicUuid}\n";
 						}
 
 						if (i < services.Count - 1)

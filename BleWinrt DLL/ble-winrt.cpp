@@ -302,17 +302,33 @@ fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid servic
 			if (status != GattCommunicationStatus::Success)
 			{
 				LogError(L"%s:%d Error subscribing to characteristic with uuid %s and status %d", __WFILE__, __LINE__, characteristicUuid, status);
+				co_return;
 			}
-			else
-			{
-				Subscription* subscription = new Subscription();
-				subscription->characteristic = characteristic;
-				//				subscription->revoker = characteristic.ValueChanged(auto_revoke, &Characteristic_ValueChanged);
-				subscriptions.push_back(subscription);
+			
+			Subscription* subscription = new Subscription();
+			subscription->characteristic = characteristic;
 
+			// Inline handler for ValueChanged event
+			subscription->revoker = characteristic.ValueChanged(auto_revoke,
+				[deviceAddress, serviceUuid, characteristicUuid, subscribeCallback]
+				(GattCharacteristic const& characteristic, GattValueChangedEventArgs args)
+			{
+				uint8_t buf[512];
+				uint16_t size;
+
+				size = args.CharacteristicValue().Length();
+
+				// Convert IBuffer to byte array
+				std::vector<uint8_t> buffer(size);
+				DataReader::FromBuffer(args.CharacteristicValue()).ReadBytes(buffer);
+				memcpy(buf, buffer.data(), size);
+
+				// Process the data or trigger a callback as needed
 				if (subscribeCallback)
-					(*subscribeCallback)();
-			}
+					(*subscribeCallback)(deviceAddress, serviceUuid, characteristicUuid, buf, size);
+			});
+
+			subscriptions.push_back(subscription);
 		}
 	}
 	catch (hresult_error& ex)
@@ -380,59 +396,6 @@ fire_and_forget WriteBytesAsync(uint64_t deviceAddress, guid serviceUuid, guid c
 	if (writeCallback)
 		writeCallback(true);
 }
-
-/*
-fire_and_forget SendDataAsync(BleData data, condition_variable* signal, bool* result)
-{
-	try
-	{
-		auto characteristic = co_await RetrieveCharacteristic(data.id, data.serviceUuid, data.characteristicUuid);
-		if (characteristic != nullptr)
-		{
-			// create IBuffer from data
-			DataWriter writer;
-			writer.WriteBytes(array_view<uint8_t const>(data.buf, data.buf + data.size));
-			IBuffer buffer = writer.DetachBuffer();
-			auto status = co_await characteristic.WriteValueAsync(buffer, GattWriteOption::WriteWithoutResponse);
-
-			if (status != GattCommunicationStatus::Success)
-				LogError(L"%s:%d Error writing value to characteristic with uuid %s", __WFILE__, __LINE__, data.characteristicUuid);
-			else if (result != 0)
-				*result = true;
-		}
-	}
-	catch (hresult_error& ex)
-	{
-		LogError(L"%s:%d SendDataAsync catch: %s\n", __WFILE__, __LINE__, ex.message().c_str());
-	}
-
-	if (signal != 0)
-		signal->notify_one();
-}
-*/
-
-
-void Characteristic_ValueChanged(GattCharacteristic const& characteristic, GattValueChangedEventArgs args)
-{
-	BleData data;
-
-	//wcscpy_s(data.characteristicUuid, sizeof(data.characteristicUuid) / sizeof(wchar_t), to_hstring(characteristic.Uuid()).c_str());
-	//wcscpy_s(data.serviceUuid, sizeof(data.serviceUuid) / sizeof(wchar_t), to_hstring(characteristic.Service().Uuid()).c_str());
-
-	data.size = args.CharacteristicValue().Length();
-
-	// IBuffer to array, copied from https://stackoverflow.com/a/55974934
-	memcpy(data.buf, args.CharacteristicValue().data(), data.size);
-
-	{
-		lock_guard lock(quitLock);
-		if (quitFlag)
-			return;
-	}
-
-	//TODO: fire callback for data
-}
-
 
 void Quit()
 {
