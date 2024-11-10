@@ -14,12 +14,13 @@ namespace BleWinrtConsole
         {
 			Console.WriteLine($"scan started");
 
-            ble.StartScan(OnAdvertisement, OnStopped);
+            ble.Initialize(OnAdvertisement, OnStopped);
+			ble.Start();
 
 			Console.WriteLine("Press enter to exit the program...");
             Console.ReadLine();
 
-			ble.StopScan();
+			ble.Stop();
         }
 
         static async void OnAdvertisement(BleAdvert ad)

@@ -92,25 +92,33 @@ public class BleWinrt
 	};
 
 
-	public void StartScan(AdvertCallback advertCb, StoppedCallback stoppedCb = null)
+	public void Initialize(AdvertCallback advertCb, StoppedCallback stoppedCb = null)
 	{
-		StartDeviceScan(advertCb, stoppedCb);
+		InitializeScan(null, Guid.Empty, advertCb, stoppedCb);
 	}
 
-	public void StartScanByServices(Guid[] services_filter, AdvertCallback advertCb)
+	public void Initialize(Guid serviceFilter, AdvertCallback advertCb, StoppedCallback stoppedCb = null)
 	{
-		//TODO
-		throw new NotImplementedException();
+		InitializeScan(null, serviceFilter, advertCb, stoppedCb);
+	}
+
+	public void Initialize(string nameFilter, AdvertCallback advertCb, StoppedCallback stoppedCb = null)
+	{
+		InitializeScan(nameFilter, Guid.Empty, advertCb, stoppedCb);
+	}
+
+	public void Start()
+	{
+		StartScan();
+	}
+	public void Stop()
+	{
+		StopScan();
 	}
 
 	public void ConnectDevice(ulong addr, ServicesFoundCallback serviceFoundCb, CharacteristicsFoundCallback characteristicFoundCb)
 	{
 		//scan services and characteristics for specific device
-	}
-
-	public void StopScan()
-	{
-		StopDeviceScan();
 	}
 
 	public Task<List<BleService>> GetServices(ulong addr)
@@ -165,12 +173,14 @@ public class BleWinrt
 	}
 		
 
-	[DllImport("BleWinrt.dll", EntryPoint = "StartDeviceScan", CharSet = CharSet.Unicode)]
-    public static extern void StartDeviceScan(AdvertCallback addedCallback, StoppedCallback stoppedCallback);
+	[DllImport("BleWinrt.dll", EntryPoint = "InitializeScan", CharSet = CharSet.Unicode)]
+    public static extern void InitializeScan(string nameFilter, Guid serviceFilter, AdvertCallback addedCallback, StoppedCallback stoppedCallback);
 
-    [DllImport("BleWinrt.dll", EntryPoint = "StopDeviceScan")]
-    public static extern void StopDeviceScan();
+	[DllImport("BleWinrt.dll", EntryPoint = "StartScan")]
+	public static extern void StartScan();
 
+	[DllImport("BleWinrt.dll", EntryPoint = "StopScan")]
+    public static extern void StopScan();
 
 	[DllImport("BleWinrt.dll", EntryPoint = "DisconnectDevice", CharSet = CharSet.Unicode)]
 	public static extern void DisconnectDevice(ulong addr, DisconnectedCallback disconnectedCb);

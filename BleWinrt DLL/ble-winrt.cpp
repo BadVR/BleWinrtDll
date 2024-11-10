@@ -29,7 +29,7 @@ bool quitFlag = false;
 list<Subscription*> subscriptions;
 
 
-void StartDeviceScan(ReceivedCallback addedCb, StoppedCallback stoppedCb)
+void InitializeScan(const wchar_t* nameFilter, guid serviceFilter, ReceivedCallback addedCb, StoppedCallback stoppedCb)
 {
 	{
 		std::lock_guard lock(quitLock);
@@ -43,30 +43,40 @@ void StartDeviceScan(ReceivedCallback addedCb, StoppedCallback stoppedCb)
 	advertisementWatcher = BluetoothLEAdvertisementWatcher();
 	advertisementWatcher.ScanningMode(BluetoothLEScanningMode::Active);
 
+	BluetoothLEAdvertisementFilter filter;
+
+	if (nameFilter != nullptr && wcslen(nameFilter) > 0)
+		filter.Advertisement().LocalName(nameFilter);
+
+	if (serviceFilter != guid{})
+		filter.Advertisement().ServiceUuids().Append(serviceFilter);
+
+	advertisementWatcher.AdvertisementFilter(filter);
+
 	// Handle received advertisements
 	advertisementWatcher.Received([](BluetoothLEAdvertisementWatcher const&, BluetoothLEAdvertisementReceivedEventArgs const& args)
-		{
-			BleAdvert di;
+	{
+		BleAdvert di;
 
-			di.mac = args.BluetoothAddress();
-			di.signalStrength = args.RawSignalStrengthInDBm();
+		di.mac = args.BluetoothAddress();
+		di.signalStrength = args.RawSignalStrengthInDBm();
 
-			// Check if TransmitPowerLevelInDBm has a value and assign it if available
-			if (args.TransmitPowerLevelInDBm())
-				di.powerLevel = args.TransmitPowerLevelInDBm().Value();
-			else
-				di.powerLevel = 0; // or set to a default if no power level is provided
+		// Check if TransmitPowerLevelInDBm has a value and assign it if available
+		if (args.TransmitPowerLevelInDBm())
+			di.powerLevel = args.TransmitPowerLevelInDBm().Value();
+		else
+			di.powerLevel = 0; // or set to a default if no power level is provided
 
-			// Retrieve the device name from the advertisement
-			auto advertisement = args.Advertisement();
-			if (!advertisement.LocalName().empty())
-				wcscpy_s(di.name, ID_SIZE, advertisement.LocalName().c_str());
-			else
-				wcscpy_s(di.name, ID_SIZE, L"");
+		// Retrieve the device name from the advertisement
+		auto advertisement = args.Advertisement();
+		if (!advertisement.LocalName().empty())
+			wcscpy_s(di.name, ID_SIZE, advertisement.LocalName().c_str());
+		else
+			wcscpy_s(di.name, ID_SIZE, L"");
 
-			if (receivedCallback)
-				(*receivedCallback)(&di);
-		});
+		if (receivedCallback)
+			(*receivedCallback)(&di);
+	});
 
 	// Handle watcher stopped
 	advertisementWatcher.Stopped([](BluetoothLEAdvertisementWatcher const&, BluetoothLEAdvertisementWatcherStoppedEventArgs const& args)
@@ -74,17 +84,16 @@ void StartDeviceScan(ReceivedCallback addedCb, StoppedCallback stoppedCb)
 		if (stoppedCallback)
 			(*stoppedCallback)();
 	});
+}
 
+void StartScan()
+{
 	advertisementWatcher.Start();
 }
 
-void StopDeviceScan()
+void StopScan()
 {
-	if (advertisementWatcher == nullptr)
-		return;
-
 	advertisementWatcher.Stop();
-	advertisementWatcher = nullptr;
 }
 
 void DisconnectDevice(uint64_t deviceAddress, DisconnectedCallback connectedCb)
@@ -374,7 +383,7 @@ void Quit()
 		quitFlag = true;
 	}
 
-	StopDeviceScan();
+	StopScan();
 	
 	{
 		for (auto subscription : subscriptions)

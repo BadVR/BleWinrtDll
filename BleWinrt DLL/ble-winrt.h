@@ -35,8 +35,9 @@ fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid servic
 //these functions will be available through the native DLL interface, exposed to Unity
 extern "C"
 {
-	__declspec(dllexport) void StartDeviceScan(ReceivedCallback addedCb, StoppedCallback stoppedCb);
-	__declspec(dllexport) void StopDeviceScan();
+	__declspec(dllexport) void InitializeScan(const wchar_t* nameFilter, guid serviceFilter, ReceivedCallback addedCb, StoppedCallback stoppedCb);
+	__declspec(dllexport) void StartScan();
+	__declspec(dllexport) void StopScan();
 
 	__declspec(dllexport) void DisconnectDevice(uint64_t deviceAddress, DisconnectedCallback connectedCb);
 
