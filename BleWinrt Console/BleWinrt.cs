@@ -27,10 +27,6 @@ public class BleWinrt
 	public delegate void ReadBytesCallback();
 	public delegate void WriteBytesCallback();
 
-	//static events for device scanning
-	public AdvertCallback Advertisement;
-	public StoppedCallback ScanStopped;
-
 
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 	public struct BleAdvert
@@ -96,24 +92,24 @@ public class BleWinrt
 	};
 
 
-	bool is_scanning = false;
-
-	public void StartScan()
+	public void StartScan(AdvertCallback advertCb, StoppedCallback stoppedCb = null)
 	{
-		if (is_scanning)
-			return;
+		StartDeviceScan(advertCb, stoppedCb);
+	}
 
-		//flag as scanning
-		is_scanning = true;
+	public void StartScanByServices(Guid[] services_filter, AdvertCallback advertCb)
+	{
+		//TODO
+		throw new NotImplementedException();
+	}
 
-		StartDeviceScan(Advertisement, InternalScanStopped);
+	public void ConnectDevice(ulong addr, ServicesFoundCallback serviceFoundCb, CharacteristicsFoundCallback characteristicFoundCb)
+	{
+		//scan services and characteristics for specific device
 	}
 
 	public void StopScan()
 	{
-		if (!is_scanning)
-			return;
-
 		StopDeviceScan();
 	}
 
@@ -123,7 +119,7 @@ public class BleWinrt
 
 		ScanServices(addr, (arr) =>
 		{
-			List<BleService> services = new List<BleService>();
+			List<BleService> services = new();
 
 			for (int i = 0; i < arr.count; i++)
 			{
@@ -146,15 +142,15 @@ public class BleWinrt
 
 		ScanCharacteristics(addr, serviceUuid, (arr) =>
 		{
-			List<BleCharacteristic> characteristics = new List<BleCharacteristic>();
+			List<BleCharacteristic> characteristics = new();
 
 			for (int i = 0; i < arr.count; i++)
 			{
 				//read the record
 				IntPtr servicePtr = IntPtr.Add(arr.characteristics, i * Marshal.SizeOf(typeof(BleCharacteristic)));
-				BleCharacteristic @char = Marshal.PtrToStructure<BleCharacteristic>(servicePtr);
+				BleCharacteristic characteristic = Marshal.PtrToStructure<BleCharacteristic>(servicePtr);
 
-				characteristics.Add(@char);
+				characteristics.Add(characteristic);
 			}
 
 			tcs.SetResult(characteristics);
@@ -167,16 +163,7 @@ public class BleWinrt
 	{
 		DisconnectDevice(addr, disconnectedCb);
 	}
-
-	void InternalScanStopped()
-	{
-		//reset flag
-		is_scanning = false;
-
-		//relay the completion
-		ScanStopped?.Invoke();
-	}
-	
+		
 
 	[DllImport("BleWinrt.dll", EntryPoint = "StartDeviceScan", CharSet = CharSet.Unicode)]
     public static extern void StartDeviceScan(AdvertCallback addedCallback, StoppedCallback stoppedCallback);

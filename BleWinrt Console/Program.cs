@@ -14,12 +14,7 @@ namespace BleWinrtConsole
         {
 			Console.WriteLine($"scan started");
 
-			BleWinrt.RegisterLogCallback((str) => Console.WriteLine(str));
-
-
-			ble.Advertisement += OnAdvertisement;
-			ble.ScanStopped += OnStopped;
-            ble.StartScan();
+            ble.StartScan(OnAdvertisement, OnStopped);
 
 			Console.WriteLine("Press enter to exit the program...");
             Console.ReadLine();
