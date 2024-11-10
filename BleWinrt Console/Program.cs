@@ -23,6 +23,8 @@ namespace BleWinrtConsole
 
 			Console.WriteLine("Press enter to exit the program...");
             Console.ReadLine();
+
+			ble.StopScan();
         }
 
         static async void OnAdvertisement(BleAdvert ad)
