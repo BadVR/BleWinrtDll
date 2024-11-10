@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 
 namespace DebugBle
@@ -61,10 +62,20 @@ namespace DebugBle
             Console.ReadLine();
         }
 
-        static void OnAdded(BleWinrt.DeviceInfo deviceInfo)
+        static async void OnAdded(BleWinrt.DeviceInfo deviceInfo)
         {
             Console.WriteLine($"+ {deviceInfo}");
-        }
+
+            string id = deviceInfo.id;
+
+            BleWinrt.BleServiceArray carrier = await ble.GetServices(id);
+
+            Console.WriteLine(id + " // " + carrier.count);
+
+//                foreach (var service in carrier.services)
+//                    Console.WriteLine($"\t{service.serviceUuid}");
+		}
+
 		static void OnRemoved(BleWinrt.DeviceInfoUpdate deviceInfoUpdate)
 		{
 			Console.WriteLine($"- {deviceInfoUpdate}");

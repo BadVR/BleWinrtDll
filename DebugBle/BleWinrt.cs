@@ -1,4 +1,6 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 
 public class BleWinrt
@@ -22,8 +24,8 @@ public class BleWinrt
 	public delegate void StoppedCallback();
 
 	public delegate void ConnectedCallback(string id);
-	public delegate void ServiceFoundCallback(BleService service);
-	public delegate void CharacteristicFoundCallback(BleCharacteristic characteristic);
+	public delegate void ServicesFoundCallback(BleServiceArray services);
+	public delegate void CharacteristicsFoundCallback(BleCharacteristicArray characteristics);
 
 	public delegate void SubscribeCallback();
 	public delegate void ReadBytesCallback();
@@ -129,9 +131,16 @@ public class BleWinrt
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 	public struct BleService
 	{
-		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 100)]
+		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = UUID_SIZE)]
 		public string serviceUuid;
 	};
+
+	[StructLayout(LayoutKind.Sequential)]
+	public struct BleServiceArray
+	{
+		public IntPtr services;  // Pointer to the array of structs
+		public int count;        // Number of elements in the array
+	}
 
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 	public struct BleCharacteristic
@@ -142,6 +151,13 @@ public class BleWinrt
 		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = ID_SIZE)]
 		public string userDescription;
 	};
+
+	[StructLayout(LayoutKind.Sequential)]
+	public struct BleCharacteristicArray
+	{
+		public IntPtr characteristics;  // Pointer to the array of structs
+		public int count;        // Number of elements in the array
+	}
 
 	[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 	public struct BleData
@@ -177,13 +193,37 @@ public class BleWinrt
 		StartDeviceScan(DeviceAdded, DeviceUpdated, DeviceRemoved, InternalScanCompleted, InternalScanStopped);
 	}
 
-	public void Stop()
+	public void StopScan()
 	{
 		if (!is_scanning)
 			return;
 
 		StopDeviceScan();
 	}
+
+	public Task<BleServiceArray> GetServices(string id)
+	{
+		var tcs = new TaskCompletionSource<BleServiceArray>();
+
+		ScanServices(id, (list) => tcs.SetResult(list));
+
+		return tcs.Task;
+	}
+
+	public Task<BleCharacteristicArray> GetCharacteristics(string id, string serviceUuid)
+	{
+		var tcs = new TaskCompletionSource<BleCharacteristicArray>();
+
+		ScanCharacteristics(id, serviceUuid, (list) => tcs.SetResult(list));
+
+		return tcs.Task;
+	}
+
+	public void Disconnect(string id, ConnectedCallback disconnectedCb)
+	{
+		DisconnectDevice(id, disconnectedCb);
+	}
+
 
 	void InternalScanCompleted()
 	{
@@ -203,6 +243,7 @@ public class BleWinrt
 		ScanStopped?.Invoke();
 	}
 
+
 	[DllImport("BleWinrtDll.dll", EntryPoint = "StartDeviceScan", CharSet = CharSet.Unicode)]
     public static extern void StartDeviceScan(DeviceInfoCallback addedCallback, DeviceUpdateCallback updatedCallback, DeviceUpdateCallback removedCallback, CompletedCallback completedCallback, StoppedCallback stoppedCallback);
 
@@ -210,18 +251,15 @@ public class BleWinrt
     public static extern void StopDeviceScan();
 
 
-    [DllImport("BleWinrtDll.dll", EntryPoint = "Connect")]
-    public static extern void Connect(string id, ConnectedCallback connectedCb);
-
-	[DllImport("BleWinrtDll.dll", EntryPoint = "Disconnect")]
-	public static extern void Disconnect(string id, ConnectedCallback disconnectedCb);
+	[DllImport("BleWinrtDll.dll", EntryPoint = "DisconnectDevice", CharSet = CharSet.Unicode)]
+	public static extern void DisconnectDevice(string id, ConnectedCallback disconnectedCb);
 
 
-	[DllImport("BleWinrtDll.dll", EntryPoint = "ScanServices")]
-	public static extern void ScanServices(string id, ServiceFoundCallback serviceFoundCb);
+	[DllImport("BleWinrtDll.dll", EntryPoint = "ScanServices", CharSet = CharSet.Unicode)]
+	public static extern void ScanServices(string id, ServicesFoundCallback serviceFoundCb);
 
 	[DllImport("BleWinrtDll.dll", EntryPoint = "ScanCharacteristics", CharSet = CharSet.Unicode)]
-    public static extern void ScanCharacteristics(string id, string serviceUuid, CharacteristicFoundCallback characteristicFoundCb);
+    public static extern void ScanCharacteristics(string id, string serviceUuid, CharacteristicsFoundCallback characteristicFoundCb);
 
     [DllImport("BleWinrtDll.dll", EntryPoint = "SubscribeCharacteristic", CharSet = CharSet.Unicode)]
     public static extern void SubscribeCharacteristic(string id, string serviceUuid, string characteristicUuid, SubscribeCallback subscribeCallback);

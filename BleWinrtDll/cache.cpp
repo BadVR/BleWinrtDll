@@ -7,15 +7,6 @@
 
 #define __WFILE__ L"cache.cpp"
 
-using namespace std;
-using namespace winrt;
-
-using namespace Windows::Foundation;
-using namespace Windows::Foundation::Collections;
-
-using namespace Windows::Devices::Bluetooth;
-using namespace Windows::Devices::Bluetooth::GenericAttributeProfile;
-using namespace Windows::Devices::Enumeration;
 
 // implement own caching instead of using the system-provicded cache as there is an AccessDenied error when trying to
 // call GetCharacteristicsAsync on a service for which a reference is hold in global scope
@@ -35,27 +26,34 @@ static long hsh(wchar_t* wstr)
 	return seed;
 }
 
-BluetoothLEDevice RetrieveDevice(wchar_t* deviceId)
+IAsyncOperation<BluetoothLEDevice> RetrieveDevice(wchar_t* deviceId)
 {
-	// Compute the hash for the device ID to check the cache
 	auto deviceHash = hsh(deviceId);
 
-	// Check if the device is already cached
-	if (cache.count(deviceHash) == 0)
-		return nullptr;
+	auto item = cache.find(deviceHash);
+	if (item != cache.end())
+		co_return item->second.device;
 
-	return cache[deviceHash].device;
-}
+	BluetoothLEDevice device = co_await BluetoothLEDevice::FromIdAsync(deviceId);
+	if (device == nullptr)
+	{
+		cout << "unable to connect\n";
+		co_return nullptr;
+	}
 
-void StoreDevice(wchar_t* deviceId, BluetoothLEDevice device)
-{
-	cache[hsh(deviceId)] = { device };
+	//store in cache
+	cache[deviceHash] = { device };
+
+	co_return device;
 }
 
 IAsyncOperation<GattDeviceService> RetrieveService(wchar_t* id, wchar_t* serviceUuid)
 {
+	auto deviceHash = hsh(id);
+	auto serviceHash = hsh(serviceUuid);
+
 	//connect to device if not already connected
-	auto device = co_await ConnectAsync(id);
+	auto device = co_await RetrieveDevice(id);
 	if (device == nullptr)
 		co_return nullptr;
 

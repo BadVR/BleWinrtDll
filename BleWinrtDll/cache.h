@@ -29,9 +29,10 @@ struct DeviceCacheEntry
 	map<long, ServiceCacheEntry> services = { };
 };
 
-BluetoothLEDevice RetrieveDevice(wchar_t* deviceId);
-void StoreDevice(wchar_t* deviceId, BluetoothLEDevice device);
+
+IAsyncOperation<BluetoothLEDevice> RetrieveDevice(wchar_t* id);
 IAsyncOperation<GattDeviceService> RetrieveService(wchar_t* id, wchar_t* serviceUuid);
-IAsyncOperation<GattCharacteristic> RetrieveCharacteristic(wchar_t* deviceId, wchar_t* serviceId, wchar_t* characteristicId);
-void RemoveFromCache(wchar_t* deviceId);
+IAsyncOperation<GattCharacteristic> RetrieveCharacteristic(wchar_t* id, wchar_t* serviceUuid, wchar_t* characteristicUuid);
+
+void RemoveFromCache(wchar_t* id);
 void ClearCache();
