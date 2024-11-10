@@ -22,45 +22,48 @@ namespace DebugBle
             Console.ReadLine();
         }
 
-        static async void OnAdvertisement(BleWinrt.BleAdvert ad)
+        static async void OnAdvertisement(BleAdvert ad)
         {
             Console.WriteLine(ad);
 
             //check if added it
             if (set.Add(ad.mac))
             {
-                List<BleService> services = await ble.GetServices(ad.mac);
+				try
+				{
+					List<BleService> services = await ble.GetServices(ad.mac);
 
-				string str = ad + " >>> " + services.Count + " service(s)";
+					string str = ad + " >>> " + services.Count + " service(s)";
 
-				if (services.Count > 0)
-					str += "\n";
+					if (services.Count > 0)
+						str += "\n";
 
-				for (int i = 0; i < services.Count; i++)
-                {
-                    Guid serviceUuid = services[i].serviceUuid;
-
-					str += $"- {serviceUuid}\n";
-
-					List<BleCharacteristic> characteristics = await ble.GetCharacteristics(ad.mac, serviceUuid);
-
-					for (int j = 0; j < characteristics.Count; j++)
+					for (int i = 0; i < services.Count; i++)
 					{
-						Guid charUuid = characteristics[j].serviceUuid;
+						Guid serviceUuid = services[i].serviceUuid;
 
-						str += $"  {charUuid}\n";
-                    }
+						str += $"- {serviceUuid}\n";
 
-					str += "\n";
+						List<BleCharacteristic> characteristics = await ble.GetCharacteristics(ad.mac, serviceUuid);
+
+						for (int j = 0; j < characteristics.Count; j++)
+						{
+							Guid charUuid = characteristics[j].serviceUuid;
+
+							str += $"  {charUuid}\n";
+						}
+
+						if (i < services.Count - 1)
+							str += "\n";
+					}
+
+					Console.WriteLine(str);
 				}
-
-				Console.WriteLine(str);
+				catch (Exception ex)
+				{
+					Console.WriteLine(ex);
+				}
 			}
-		}
-
-		static void OnCompleted()
-		{
-			Console.WriteLine($"scan completed");
 		}
 
 		static void OnStopped()

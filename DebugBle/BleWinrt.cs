@@ -56,7 +56,6 @@ public class BleWinrt
 	    }
 	}
 
-	[StructLayout(LayoutKind.Sequential)]
 	public struct BleService
 	{
 		public Guid serviceUuid;
