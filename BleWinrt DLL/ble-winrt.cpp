@@ -96,6 +96,11 @@ void StopScan()
 	advertisementWatcher.Stop();
 }
 
+void ConnectDevice(uint64_t deviceAddress, ConnectedCallback connectedCb)
+{
+	ConnectDeviceAsync(deviceAddress, connectedCb);
+}
+
 void DisconnectDevice(uint64_t deviceAddress, DisconnectedCallback connectedCb)
 {
 	try
@@ -131,21 +136,14 @@ void SubscribeCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid char
 
 void ReadBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, ReadBytesCallback readBufferCb)
 {
-	//TODO
+	ReadBytesAsync(deviceAddress, serviceUuid, characteristicUuid, readBufferCb);
 }
 
-void WriteBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, WriteBytesCallback writeBytesCb)
+void WriteBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, const uint8_t* data, size_t size, WriteBytesCallback writeBytesCb)
 {
-	//TODO
+	WriteBytesAsync(deviceAddress, serviceUuid, characteristicUuid, data, size, writeBytesCb);
 }
 
-
-IAsyncOperation<BluetoothLEDevice> ConnectAsync(uint64_t deviceAddress)
-{
-	BluetoothLEDevice device = co_await RetrieveDevice(deviceAddress);
-
-	co_return device;
-}
 
 fire_and_forget ScanServicesAsync(uint64_t deviceAddress, ServicesFoundCallback servicesCb)
 {
@@ -224,7 +222,7 @@ fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUui
 				(*characteristicsCb)(&char_list);
 			co_return;
 		}
-		
+
 		GattCharacteristicsResult charScan = co_await service.GetCharacteristicsAsync(BluetoothCacheMode::Uncached);
 
 		if (charScan.Status() != GattCommunicationStatus::Success)
@@ -242,7 +240,7 @@ fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUui
 		char_list.characteristics = new BleCharacteristic[char_list.count];
 
 		int i = 0;
-		
+
 		for (auto c : characteristics)
 		{
 			BleCharacteristic char_carrier;
@@ -269,7 +267,7 @@ fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUui
 					LogError(L"%s:%d couldn't read user description for charasteristic %s, status %d", __WFILE__, __LINE__, to_hstring(c.Uuid()).c_str(), nameResult.Status());
 					continue;
 				}
-				
+
 				auto dataReader = DataReader::FromBuffer(nameResult.Value());
 				auto output = dataReader.ReadString(dataReader.UnconsumedBufferLength());
 				wcscpy_s(char_carrier.userDescription, sizeof(char_carrier.userDescription) / sizeof(wchar_t), output.c_str());
@@ -309,7 +307,7 @@ fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid servic
 			{
 				Subscription* subscription = new Subscription();
 				subscription->characteristic = characteristic;
-//				subscription->revoker = characteristic.ValueChanged(auto_revoke, &Characteristic_ValueChanged);
+				//				subscription->revoker = characteristic.ValueChanged(auto_revoke, &Characteristic_ValueChanged);
 				subscriptions.push_back(subscription);
 
 				if (subscribeCallback)
@@ -321,6 +319,66 @@ fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid servic
 	{
 		LogError(L"%s:%d SubscribeCharacteristicAsync catch: %s", __WFILE__, __LINE__, ex.message().c_str());
 	}
+}
+
+fire_and_forget ConnectDeviceAsync(uint64_t deviceAddress, ConnectedCallback connectedCb)
+{
+	auto device = co_await RetrieveDevice(deviceAddress);
+	if (device == nullptr)
+	{
+		if (connectedCb)
+			(*connectedCb)(0);
+
+		co_return;
+	}
+
+	if (connectedCb)
+		(*connectedCb)(deviceAddress);
+}
+
+fire_and_forget ReadBytesAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, ReadBytesCallback readBufferCb)
+{
+	auto ch = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
+	auto dataFromRead = co_await ch.ReadValueAsync();
+	if (dataFromRead.Status() != GattCommunicationStatus::Success)
+		co_return;
+
+	// Convert the data from IBuffer to a byte array
+	IBuffer buffer = dataFromRead.Value();
+	std::vector<uint8_t> bytes(buffer.Length());
+	if (buffer.Length() > 0)
+	{
+		DataReader reader = DataReader::FromBuffer(buffer);
+		reader.ReadBytes(bytes);
+	}
+
+	if (readBufferCb)
+		readBufferCb(bytes.data(), bytes.size());
+}
+
+fire_and_forget WriteBytesAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, const uint8_t* data, size_t size, WriteBytesCallback writeCallback)
+{
+	// Retrieve the characteristic asynchronously
+	auto ch = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
+	if (!ch)
+	{
+		if (writeCallback)
+			writeCallback(false); // Indicate that the characteristic is unavailable
+
+		co_return;
+	}
+
+	// Create an IBuffer from the byte array
+	DataWriter writer;
+	writer.WriteBytes(array_view<const uint8_t>(data, data + size));
+	IBuffer buffer = writer.DetachBuffer();
+
+	// Write the value asynchronously
+	GattCommunicationStatus status = co_await ch.WriteValueAsync(buffer);
+
+	// Call the callback with the result status
+	if (writeCallback)
+		writeCallback(true);
 }
 
 /*
