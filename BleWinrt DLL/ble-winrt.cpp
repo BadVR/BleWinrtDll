@@ -134,6 +134,11 @@ void SubscribeCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid char
 	SubscribeCharacteristicAsync(deviceAddress, serviceUuid, characteristicUuid, subscribeCallback);
 }
 
+void UnsubscribeCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid)
+{
+	UnsubscribeCharacteristicAsync(deviceAddress, serviceUuid, characteristicUuid);
+}
+
 void ReadBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, ReadBytesCallback readBufferCb)
 {
 	ReadBytesAsync(deviceAddress, serviceUuid, characteristicUuid, readBufferCb);
@@ -334,6 +339,41 @@ fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid servic
 	catch (hresult_error& ex)
 	{
 		LogError(L"%s:%d SubscribeCharacteristicAsync catch: %s", __WFILE__, __LINE__, ex.message().c_str());
+	}
+}
+
+fire_and_forget UnsubscribeCharacteristicAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid)
+{
+	try
+	{
+		// Find the subscription in the subscriptions list
+		auto it = std::find_if(subscriptions.begin(), subscriptions.end(), [&](Subscription* sub)
+		{
+			return sub->characteristic.Uuid() == characteristicUuid && sub->characteristic.Service().Uuid() == serviceUuid;
+		});
+
+		if (it == subscriptions.end())
+			co_return;
+
+		// Retrieve the characteristic
+		auto characteristic = (*it)->characteristic;
+
+		// Disable notifications
+		auto status = co_await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue::None);
+		if (status != GattCommunicationStatus::Success)
+		{
+			LogError(L"%s:%d Error unsubscribing from characteristic with uuid %s and status %d", __WFILE__, __LINE__, characteristicUuid, status);
+			co_return;
+		}
+
+		// Revoke the event handler and delete the subscription
+		(*it)->revoker.revoke();
+		delete* it;
+		subscriptions.erase(it);
+	}
+	catch (hresult_error& ex)
+	{
+		LogError(L"%s:%d UnsubscribeCharacteristicAsync catch: %s", __WFILE__, __LINE__, ex.message().c_str());
 	}
 }
 

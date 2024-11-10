@@ -196,6 +196,9 @@ public class BleWinrt
     [DllImport("BleWinrt.dll", EntryPoint = "SubscribeCharacteristic", CharSet = CharSet.Unicode)]
     public static extern void SubscribeCharacteristic(ulong addr, Guid serviceUuid, Guid characteristicUuid, SubscribeCallback subscribeCallback);
 
+	[DllImport("BleWinrt.dll", EntryPoint = "UnsubscribeCharacteristic", CharSet = CharSet.Unicode)]
+	public static extern void UnsubscribeCharacteristic(ulong addr, Guid serviceUuid, Guid characteristicUuid);
+
 
 	[DllImport("BleWinrt.dll", EntryPoint = "ReadData", CharSet = CharSet.Unicode)]
 	public static extern void ReadBytes(ulong addr, Guid serviceUuid, Guid characteristicUuid, ReadBytesCallback readBufferCb);

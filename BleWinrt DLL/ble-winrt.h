@@ -32,6 +32,7 @@ using WriteBytesCallback = void(bool success);
 fire_and_forget ScanServicesAsync(uint64_t deviceAddress, ServicesFoundCallback servicesCb);
 fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUuid, CharacteristicsFoundCallback characteristicsCb);
 fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, SubscribeCallback subscribeCallback);
+fire_and_forget UnsubscribeCharacteristicAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid);
 
 fire_and_forget ConnectDeviceAsync(uint64_t deviceAddress, ConnectedCallback connectedCb);
 
@@ -53,6 +54,7 @@ extern "C"
 	__declspec(dllexport) void ScanCharacteristics(uint64_t deviceAddress, guid serviceUuid, CharacteristicsFoundCallback characteristicFoundCb);
 
 	__declspec(dllexport) void SubscribeCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, SubscribeCallback subscribeCallback);
+	__declspec(dllexport) void UnsubscribeCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid);
 
 	__declspec(dllexport) void ReadBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, ReadBytesCallback readBufferCb);
 	__declspec(dllexport) void WriteBytes(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, const uint8_t* data, size_t size, WriteBytesCallback writeBytesCb);
