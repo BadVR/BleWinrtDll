@@ -107,6 +107,11 @@ public class BleWinrt
 		InitializeScan(nameFilter, Guid.Empty, advertCb, stoppedCb);
 	}
 
+	public void Initialize(string nameFilter, Guid serviceFilter, AdvertCallback advertCb, StoppedCallback stoppedCb = null)
+	{
+		InitializeScan(nameFilter, serviceFilter, advertCb, stoppedCb);
+	}
+
 	public void Start()
 	{
 		StartScan();
