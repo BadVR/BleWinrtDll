@@ -38,17 +38,17 @@ public class BleWinrt
 
 		public int signalStrength;
 
-		public override string ToString()
+		public override readonly string ToString()
 		{
-            string str = MacHex(mac);
+			string str = MacHex(mac);
 
-            if (!string.IsNullOrEmpty(name))
-                str += " / " + name;
+			if (!string.IsNullOrEmpty(name))
+				str += " / " + name;
 
-            str += $" // {signalStrength}";
+			str += $" // {signalStrength}";
 
-            return str;
-	    }
+			return str;
+		}
 	}
 
 	public struct BleService
@@ -116,6 +116,7 @@ public class BleWinrt
 	{
 		StartScan();
 	}
+
 	public void Stop()
 	{
 		StopScan();
@@ -176,46 +177,46 @@ public class BleWinrt
 	{
 		DisconnectDevice(addr, disconnectedCb);
 	}
-		
+
 
 	[DllImport("BleWinrt.dll", EntryPoint = "InitializeScan", CharSet = CharSet.Unicode)]
-    public static extern void InitializeScan(string nameFilter, Guid serviceFilter, AdvertCallback addedCallback, StoppedCallback stoppedCallback);
+	static extern void InitializeScan(string nameFilter, Guid serviceFilter, AdvertCallback addedCallback, StoppedCallback stoppedCallback);
 
 	[DllImport("BleWinrt.dll", EntryPoint = "StartScan")]
-	public static extern void StartScan();
+	static extern void StartScan();
 
 	[DllImport("BleWinrt.dll", EntryPoint = "StopScan")]
-    public static extern void StopScan();
+	static extern void StopScan();
 
 	[DllImport("BleWinrt.dll", EntryPoint = "DisconnectDevice", CharSet = CharSet.Unicode)]
-	public static extern void DisconnectDevice(ulong addr, DisconnectedCallback disconnectedCb);
+	static extern void DisconnectDevice(ulong addr, DisconnectedCallback disconnectedCb);
 
 
 	[DllImport("BleWinrt.dll", EntryPoint = "ScanServices", CharSet = CharSet.Unicode)]
-	public static extern void ScanServices(ulong addr, ServicesFoundCallback serviceFoundCb);
+	static extern void ScanServices(ulong addr, ServicesFoundCallback serviceFoundCb);
 
 	[DllImport("BleWinrt.dll", EntryPoint = "ScanCharacteristics", CharSet = CharSet.Unicode)]
-    public static extern void ScanCharacteristics(ulong addr, Guid serviceUuid, CharacteristicsFoundCallback characteristicFoundCb);
+	static extern void ScanCharacteristics(ulong addr, Guid serviceUuid, CharacteristicsFoundCallback characteristicFoundCb);
 
 
-    [DllImport("BleWinrt.dll", EntryPoint = "SubscribeCharacteristic", CharSet = CharSet.Unicode)]
-    public static extern void SubscribeCharacteristic(ulong addr, Guid serviceUuid, Guid characteristicUuid, SubscribeCallback subscribeCallback);
+	[DllImport("BleWinrt.dll", EntryPoint = "SubscribeCharacteristic", CharSet = CharSet.Unicode)]
+	static extern void SubscribeCharacteristic(ulong addr, Guid serviceUuid, Guid characteristicUuid, SubscribeCallback subscribeCallback);
 
 	[DllImport("BleWinrt.dll", EntryPoint = "UnsubscribeCharacteristic", CharSet = CharSet.Unicode)]
-	public static extern void UnsubscribeCharacteristic(ulong addr, Guid serviceUuid, Guid characteristicUuid);
+	static extern void UnsubscribeCharacteristic(ulong addr, Guid serviceUuid, Guid characteristicUuid);
 
 
 	[DllImport("BleWinrt.dll", EntryPoint = "ReadData", CharSet = CharSet.Unicode)]
-	public static extern void ReadBytes(ulong addr, Guid serviceUuid, Guid characteristicUuid, ReadBytesCallback readBufferCb);
+	static extern void ReadBytes(ulong addr, Guid serviceUuid, Guid characteristicUuid, ReadBytesCallback readBufferCb);
 
 	[DllImport("BleWinrt.dll", EntryPoint = "WriteData", CharSet = CharSet.Unicode)]
-    public static extern void WriteBytes(ulong addr, Guid serviceUuid, Guid characteristicUuid, byte[] buf, int size, WriteBytesCallback writeBytesCb);
+	static extern void WriteBytes(ulong addr, Guid serviceUuid, Guid characteristicUuid, byte[] buf, int size, WriteBytesCallback writeBytesCb);
 
 	/// <summary>
 	/// close everything and clean up
 	/// </summary>
-    [DllImport("BleWinrt.dll", EntryPoint = "Quit")]
-    public static extern void Quit();
+	[DllImport("BleWinrt.dll", EntryPoint = "Quit")]
+	public static extern void Quit();
 
 	public static string MacHex(ulong mac)
 	{
