@@ -37,7 +37,7 @@ IAsyncOperation<BluetoothLEDevice> RetrieveDevice(uint64_t deviceAddress)
 
 		co_return device;
 	}
-	catch (hresult_error const& ex)
+	catch (hresult_error const&)
 	{
 		co_return nullptr;
 	}

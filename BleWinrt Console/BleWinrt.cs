@@ -36,7 +36,14 @@ public class BleWinrt
 		[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
 		public string name;
 
+		public long timestamp;
+
 		public int signalStrength;
+		public int powerLevel;
+
+		//pointer to array of Guid service uuids
+		public IntPtr serviceUuids;
+		public int numServiceUuids;
 
 		public override readonly string ToString()
 		{
@@ -48,6 +55,12 @@ public class BleWinrt
 			str += $" // {signalStrength}";
 
 			return str;
+		}
+
+		public readonly string ToServicesString()
+		{
+			//TODO
+			return "";
 		}
 	}
 

@@ -58,6 +58,10 @@ void InitializeScan(const wchar_t* nameFilter, guid serviceFilter, ReceivedCallb
 	{
 		BleAdvert di;
 
+		//convoluted way of getting the timestamp of the packet
+		//TODO
+		di.timestamp = args.Timestamp().time_since_epoch().count();
+		
 		di.mac = args.BluetoothAddress();
 		di.signalStrength = args.RawSignalStrengthInDBm();
 
@@ -69,10 +73,29 @@ void InitializeScan(const wchar_t* nameFilter, guid serviceFilter, ReceivedCallb
 
 		// Retrieve the device name from the advertisement
 		auto advertisement = args.Advertisement();
+
+		//TODO
+//		advertisement.Flags()
+//		advertisement.ManufacturerData()
+
+		//check if there are service uuids to copy over from the adavert
+		di.numServiceUuids = advertisement.ServiceUuids().Size();
+
+		if (di.numServiceUuids > 0) 
+		{
+			//build list
+			di.serviceUuids = new guid[di.numServiceUuids];
+
+			//copy guids into list
+			int i = 0;
+			for (auto&& service : advertisement.ServiceUuids())
+				di.serviceUuids[i++] = service;
+		}
+
 		if (!advertisement.LocalName().empty())
-			wcscpy_s(di.name, ID_SIZE, advertisement.LocalName().c_str());
+			wcscpy_s(di.name, NAME_SIZE, advertisement.LocalName().c_str());
 		else
-			wcscpy_s(di.name, ID_SIZE, L"");
+			wcscpy_s(di.name, NAME_SIZE, L"");
 
 		if (receivedCallback)
 			(*receivedCallback)(&di);
@@ -157,17 +180,25 @@ fire_and_forget ScanServicesAsync(uint64_t deviceAddress, ServicesFoundCallback 
 	try
 	{
 		// Connect to device if not already connected
-		auto device = co_await RetrieveDevice(deviceAddress);
+		BluetoothLEDevice device = co_await RetrieveDevice(deviceAddress);
 		if (device == nullptr)
 		{
 			//wprintf(L"Failed to retrieve device at address: %llu\n", deviceAddress);
 			if (servicesCb)
 				(*servicesCb)(&service_list);
+
 			co_return;
 		}
 
 		// Try using BluetoothCacheMode::Cached to see if it improves results
 		GattDeviceServicesResult result = co_await device.GetGattServicesAsync(BluetoothCacheMode::Uncached);
+
+		{
+			//check for quit signal after an async operation
+			std::lock_guard lock(quitLock);
+			if (quitFlag)
+				co_return;
+		}
 
 		if (result.Status() == GattCommunicationStatus::Unreachable)
 			result = co_await device.GetGattServicesAsync(BluetoothCacheMode::Cached);
@@ -188,17 +219,12 @@ fire_and_forget ScanServicesAsync(uint64_t deviceAddress, ServicesFoundCallback 
 
 				for (auto&& service : services)
 				{
-					BleService service_carrier;
+					//TODO: does this really need a carrier just for a list of services?
+					BleService service_carrier {};
 
 					service_carrier.serviceUuid = service.Uuid();
 
 					service_list.services[i++] = service_carrier;
-
-					{
-						std::lock_guard lock(quitLock);
-						if (quitFlag)
-							break;
-					}
 				}
 			}
 		}
@@ -248,7 +274,8 @@ fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUui
 
 		for (auto c : characteristics)
 		{
-			BleCharacteristic char_carrier;
+			//create a carrier object to pass through marshaled callback
+			BleCharacteristic char_carrier {};
 
 			char_carrier.characteristicUuid = c.Uuid();
 
@@ -257,7 +284,10 @@ fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUui
 
 			if (descriptorScan.Descriptors().Size() == 0)
 			{
-				const wchar_t* defaultDescription = L"no description available";
+				//default to empty description
+				const wchar_t* defaultDescription = L"";
+
+				//safely copy it over
 				wcscpy_s(char_carrier.userDescription, sizeof(char_carrier.userDescription) / sizeof(wchar_t), defaultDescription);
 			}
 			else
@@ -266,7 +296,7 @@ fire_and_forget ScanCharacteristicsAsync(uint64_t deviceAddress, guid serviceUui
 				GattDescriptor descriptor = descriptorScan.Descriptors().GetAt(0);
 
 				//read name descriptor
-				auto nameResult = co_await descriptor.ReadValueAsync();
+				GattReadResult nameResult = co_await descriptor.ReadValueAsync();
 				if (nameResult.Status() != GattCommunicationStatus::Success)
 				{
 					LogError(L"%s:%d couldn't read user description for charasteristic %s, status %d", __WFILE__, __LINE__, to_hstring(c.Uuid()).c_str(), nameResult.Status());
@@ -300,7 +330,7 @@ fire_and_forget SubscribeCharacteristicAsync(uint64_t deviceAddress, guid servic
 {
 	try
 	{
-		auto characteristic = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
+		GattCharacteristic characteristic = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
 		if (characteristic != nullptr)
 		{
 			auto status = co_await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue::Notify);
@@ -356,7 +386,7 @@ fire_and_forget UnsubscribeCharacteristicAsync(uint64_t deviceAddress, guid serv
 			co_return;
 
 		// Retrieve the characteristic
-		auto characteristic = (*it)->characteristic;
+		GattCharacteristic characteristic = (*it)->characteristic;
 
 		// Disable notifications
 		auto status = co_await characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue::None);
@@ -394,8 +424,8 @@ fire_and_forget ConnectDeviceAsync(uint64_t deviceAddress, ConnectedCallback con
 
 fire_and_forget ReadBytesAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, ReadBytesCallback readBufferCb)
 {
-	auto ch = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
-	auto dataFromRead = co_await ch.ReadValueAsync();
+	GattCharacteristic ch = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
+	GattReadResult dataFromRead = co_await ch.ReadValueAsync();
 	if (dataFromRead.Status() != GattCommunicationStatus::Success)
 		co_return;
 
@@ -415,7 +445,7 @@ fire_and_forget ReadBytesAsync(uint64_t deviceAddress, guid serviceUuid, guid ch
 fire_and_forget WriteBytesAsync(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid, const uint8_t* data, size_t size, WriteBytesCallback writeCallback)
 {
 	// Retrieve the characteristic asynchronously
-	auto ch = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
+	GattCharacteristic ch = co_await RetrieveCharacteristic(deviceAddress, serviceUuid, characteristicUuid);
 	if (!ch)
 	{
 		if (writeCallback)
