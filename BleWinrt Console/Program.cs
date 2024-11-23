@@ -25,8 +25,12 @@ namespace BleWinrtConsole
 
         static async void OnAdvertisement(BleAdvert ad)
         {
-            Console.WriteLine(ad);
+			//Console.WriteLine(ad);
 
+			Console.WriteLine(BleWinrt.GetArray());
+			//Console.WriteLine('1');
+
+			return;
             //check if added it
             if (set.Add(ad.mac))
             {

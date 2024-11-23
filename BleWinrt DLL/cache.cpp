@@ -46,7 +46,7 @@ IAsyncOperation<BluetoothLEDevice> RetrieveDevice(uint64_t deviceAddress)
 IAsyncOperation<GattDeviceService> RetrieveService(uint64_t deviceAddress, guid serviceUuid)
 {
 	//connect to device if not already connected
-	auto device = co_await RetrieveDevice(deviceAddress);
+	BluetoothLEDevice device = co_await RetrieveDevice(deviceAddress);
 	if (device == nullptr)
 		co_return nullptr;
 
@@ -76,7 +76,7 @@ IAsyncOperation<GattDeviceService> RetrieveService(uint64_t deviceAddress, guid 
 
 IAsyncOperation<GattCharacteristic> RetrieveCharacteristic(uint64_t deviceAddress, guid serviceUuid, guid characteristicUuid)
 {
-	auto service = co_await RetrieveService(deviceAddress, serviceUuid);
+	GattDeviceService service = co_await RetrieveService(deviceAddress, serviceUuid);
 	if (service == nullptr)
 		co_return nullptr;
 
@@ -111,11 +111,11 @@ void RemoveFromCache(uint64_t deviceAddress)
 		return;
 
 	// Copying device and services as in Quit function. 
-	auto dev = devP->second;
+	DeviceCacheEntry dev = devP->second;
 	if (dev.device != nullptr)
 		dev.device.Close();
 
-	for (auto service : dev.services)
+	for (pair<guid, ServiceCacheEntry> service : dev.services)
 		service.second.service.Close();
 
 	cache.erase(deviceAddress);
@@ -123,11 +123,11 @@ void RemoveFromCache(uint64_t deviceAddress)
 
 void ClearCache()
 {
-	for (auto device : cache)
+	for (pair<uint64_t, DeviceCacheEntry>  device : cache)
 	{
 		device.second.device.Close();
 
-		for (auto service : device.second.services)
+		for (pair<guid, ServiceCacheEntry> service : device.second.services)
 			service.second.service.Close();
 	}
 

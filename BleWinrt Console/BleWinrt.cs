@@ -15,6 +15,10 @@ public class BleWinrt
 	[DllImport("BleWinrt.dll", EntryPoint = "RegisterErrorCallback")]
 	public static extern void RegisterErrorCallback(ErrorCallback logCb);
 
+	[DllImport("BleWinrt.dll", EntryPoint = "GetArray")]
+	[return: MarshalAs(UnmanagedType.SafeArray, SafeArraySubType = VarEnum.VT_I4)]
+	public static extern int[] GetArray();
+
 
 	public delegate void AdvertCallback(BleAdvert ad);
 	public delegate void StoppedCallback();
@@ -42,8 +46,8 @@ public class BleWinrt
 		public int powerLevel;
 
 		//pointer to array of Guid service uuids
-		public IntPtr serviceUuids;
-		public int numServiceUuids;
+		[MarshalAs(UnmanagedType.SafeArray, SafeArraySubType = VarEnum.VT_CLSID	)]
+		public Guid[] serviceUuids;
 
 		public override readonly string ToString()
 		{

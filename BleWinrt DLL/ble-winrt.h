@@ -47,6 +47,8 @@ extern "C"
 	__declspec(dllexport) void StartScan();
 	__declspec(dllexport) void StopScan();
 
+	__declspec(dllexport) com_array<int> GetArray();
+
 	__declspec(dllexport) void ConnectDevice(uint64_t deviceAddress, ConnectedCallback connectedCb);
 	__declspec(dllexport) void DisconnectDevice(uint64_t deviceAddress, DisconnectedCallback connectedCb);
 

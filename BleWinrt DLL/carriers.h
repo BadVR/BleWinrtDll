@@ -1,5 +1,6 @@
 #pragma once
 
+#include <list>
 using namespace winrt;
 using namespace winrt::Windows::Devices::Bluetooth::GenericAttributeProfile;
 
@@ -17,8 +18,7 @@ struct BleAdvert
 	int32_t signalStrength = 0;
 	int32_t powerLevel = 0; //16-bit is enough, but 32 for C# serialization
 
-	guid *serviceUuids;
-	int32_t numServiceUuids = 0; //8-bit is enough, but 32 for C# serialization
+	com_array<GUID> serviceUuids;
 };
 
 struct BleService

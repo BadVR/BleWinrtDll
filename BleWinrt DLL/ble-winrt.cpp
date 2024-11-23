@@ -79,18 +79,19 @@ void InitializeScan(const wchar_t* nameFilter, guid serviceFilter, ReceivedCallb
 //		advertisement.ManufacturerData()
 
 		//check if there are service uuids to copy over from the adavert
-		di.numServiceUuids = advertisement.ServiceUuids().Size();
+		int numServiceUuids = advertisement.ServiceUuids().Size();
 
-		if (di.numServiceUuids > 0) 
+		vector<GUID> serviceUuids = { GUID(55) };
+//		serviceUuids.push_back(static_cast<GUID>(numServiceUuids));
+		if (numServiceUuids > 0) 
 		{
-			//build list
-			di.serviceUuids = new guid[di.numServiceUuids];
-
 			//copy guids into list
 			int i = 0;
-			for (auto&& service : advertisement.ServiceUuids())
-				di.serviceUuids[i++] = service;
+//			for (auto const& service : advertisement.ServiceUuids())
+//				serviceUuids.push_back(static_cast<GUID>(service));
 		}
+
+//		di.serviceUuids = com_array<GUID>(serviceUuids.begin(), serviceUuids.end());
 
 		if (!advertisement.LocalName().empty())
 			wcscpy_s(di.name, NAME_SIZE, advertisement.LocalName().c_str());
@@ -485,4 +486,14 @@ void Quit()
 	
 
 	ClearCache();
+}
+
+com_array<int> GetArray()
+{
+	vector<int> x =
+	{
+		1, 3, 5
+	};
+
+	return com_array<int>(x.begin(), x.end());
 }
