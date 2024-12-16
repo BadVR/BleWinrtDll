@@ -1,4 +1,4 @@
-* this repo is in the middle of an overhaul, and likely will not currently build
+# NOTE: this repo is in the middle of an overhaul, and likely will not currently build
 
 # UWP BLE packed as C++ winrt dll
 
