@@ -1,3 +1,5 @@
+* this repo is in the middle of an overhaul, and likely will not currently build
+
 # UWP BLE packed as C++ winrt dll
 
 To try it out in Unity, open the project "BleWinrtDll Unity" in Unity. Then start the scene "Assets/Scenes/Demo.scene".
